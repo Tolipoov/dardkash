@@ -1,0 +1,81 @@
+services:
+  dardkash-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
+        NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME}
+        NEXT_PUBLIC_API_ORIGIN: ${NEXT_PUBLIC_API_ORIGIN}
+    container_name: dardkash-web
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks:
+      - dardkash-net
+  dardkash-livekit:
+    image: livekit/livekit-server:latest
+    container_name: dardkash-livekit
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit/livekit.yaml:/etc/livekit.yaml
+    ports:
+      # Signal (WebSocket) — faqat ichkariga, Nginx orqali tashqariga chiqadi
+      - "127.0.0.1:7880:7880"
+      # ICE/TURN zaxira ulanishi — TO'G'RIDAN-TO'G'RI tashqariga ochiq bo'lishi SHART
+      - "7881:7881"
+      # Video/audio oqimining o'zi (RTP) — bu ham to'g'ridan-to'g'ri ochiq bo'lishi SHART
+      - "50000-50200:50000-50200/udp"
+    networks:
+      - dardkash-net
+    depends_on:
+      - dardkash-api
+
+  dardkash-api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: dardkash-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@dardkash-db:5432/${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      dardkash-db:
+        condition: service_healthy
+    networks:
+      - dardkash-net
+
+  dardkash-db:
+    image: postgres:16-alpine
+    container_name: dardkash-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - dardkash-db-data:/var/lib/postgresql/data
+      - ./server/migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - dardkash-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+networks:
+  dardkash-net:
+    name: dardkash-net
+    driver: bridge
+
+volumes:
+  dardkash-db-data:
+    name: dardkash-db-data

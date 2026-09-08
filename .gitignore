@@ -1,0 +1,18 @@
+# Bog'liqliklar va build natijalari
+node_modules
+.next
+dist
+tsconfig.tsbuildinfo
+
+# MAXFIY fayllar — bular hech qachon GitHub'ga tushmasligi kerak
+.env
+.env.local
+.env.production
+livekit/livekit.yaml
+
+# Tizim fayllari
+.DS_Store
+*.log
+
+# Shaxsiy vosita sozlamalari (har kim o'zinikini saqlaydi)
+.claude/settings.local.json
