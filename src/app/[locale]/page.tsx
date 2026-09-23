@@ -1,6 +1,5 @@
 import AnonymousQuoteCard from "@/components/landing/AnonymousQuoteCard";
 import HeroCTAButtons from "@/components/landing/HeroCTAButtons";
-import LandingStats from "@/components/landing/LandingStats";
 import WaveDivider from "@/components/landing/WaveDivider";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 
@@ -70,8 +69,6 @@ export default async function LandingPage({
       </section>
 
       <WaveDivider />
-
-      <LandingStats />
 
       <section id="how" className="bg-sahar px-6 py-20">
         <div className="mx-auto max-w-6xl">

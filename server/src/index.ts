@@ -64,31 +64,6 @@ app.get("/health", async (_req, res) => {
   }
 });
 
-// Marketing (bosh) sahifa uchun umumiy, shaxsni aniqlamaydigan statistika —
-// login talab qilinmaydi, faqat yig'indi sonlar qaytariladi.
-app.get("/api/stats/public", async (_req, res) => {
-  try {
-    const [listenersResult, sessionsResult] = await Promise.all([
-      pool.query(
-        "SELECT COUNT(*)::int AS count FROM listener_profiles WHERE status = 'approved'",
-      ),
-      pool.query(
-        "SELECT COUNT(*)::int AS count FROM sessions WHERE status = 'ended'",
-      ),
-    ]);
-    res.json({
-      status: "ok",
-      approvedListeners: listenersResult.rows[0].count,
-      completedSessions: sessionsResult.rows[0].count,
-    });
-  } catch (err) {
-    console.error("Umumiy statistikani olishda xato:", err);
-    res
-      .status(500)
-      .json({ status: "error", message: "Statistikani olib bo'lmadi" });
-  }
-});
-
 app.get("/api/auth/google/start", (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
   res.cookie("google_oauth_state", state, {
