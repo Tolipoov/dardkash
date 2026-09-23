@@ -78,6 +78,9 @@ export function attachChatWebSocket(server: Server) {
         }
       } catch (err) {
         console.error("Chat WS xabar xatosi:", err);
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "error", message: "Xabar yuborib bo'lmadi" }));
+        }
       }
     });
 

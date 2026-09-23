@@ -5,7 +5,7 @@ import { useToast } from "@/components/ui/Toast";
 import TopicTag from "@/components/ui/TopicTag";
 import { useRouter } from "@/i18n/navigation";
 import { TOPIC_CODES, type TopicCode } from "@/lib/topics";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -41,6 +41,7 @@ function formatPhoneNumber(value: string): string {
 export default function OnboardingForm() {
   const t = useTranslations("onboarding");
   const tTopics = useTranslations("topics");
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialRole = (searchParams.get("role") as Role) || "";
@@ -118,7 +119,7 @@ export default function OnboardingForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ...form, wants: form.role }),
+        body: JSON.stringify({ ...form, wants: form.role, language: locale }),
       });
       if (!res.ok) throw new Error("Saqlashda xato");
       setSubmitted(true);

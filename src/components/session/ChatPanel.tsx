@@ -2,6 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { buildWsUrl } from "@/lib/ws";
+import { useToast } from "@/components/ui/Toast";
+
+// Bu kodlar bilan yopilsa, muammo vaqtinchalik emas (login yo'q, sessionId
+// yo'q, yoki bu suhbatga aloqasi yo'q) — qayta ulanishga urinish faqat
+// cheksiz jim tsikl hosil qiladi, foydalanuvchiga hech narsa ko'rinmaydi.
+const FATAL_CLOSE_CODES = new Set([4001, 4002, 4003]);
 
 interface ChatMessage {
   id: string;
@@ -23,8 +29,10 @@ export default function ChatPanel({
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const toast = useToast();
 
   // Avval tarixni yuklaymiz, keyin real vaqt uchun WebSocket ulanamiz
   useEffect(() => {
@@ -45,19 +53,30 @@ export default function ChatPanel({
       );
       wsRef.current = ws;
 
+      ws.onopen = () => {
+        setConnectionError(null);
+      };
+
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.type === "message") {
           setMessages((prev) => [...prev, data.message]);
+        } else if (data.type === "error") {
+          toast.push(data.message || "Xabar yuborib bo'lmadi", "error");
         }
       };
 
       // Uzoq suhbat davomida tarmoq bir lahza uzilishi mumkin — jimgina
       // qayta ulanamiz, aks holda foydalanuvchi xabar yozadi-yu, hech
       // qayerga yetib bormaydi (chunki `send()` faqat readyState OPEN
-      // bo'lganda ishlaydi).
-      ws.onclose = () => {
+      // bo'lganda ishlaydi). Lekin 4001-4003 — login yo'q yoki bu suhbatga
+      // aloqasi yo'q degani, qayta urinish faqat cheksiz jim tsikl beradi.
+      ws.onclose = (event) => {
         if (cancelled) return;
+        if (FATAL_CLOSE_CODES.has(event.code)) {
+          setConnectionError("Yozishmaga ulanib bo'lmadi");
+          return;
+        }
         reconnectTimer = setTimeout(connect, 2000);
       };
     }
@@ -69,6 +88,7 @@ export default function ChatPanel({
       if (reconnectTimer) clearTimeout(reconnectTimer);
       wsRef.current?.close();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   useEffect(() => {
@@ -77,7 +97,11 @@ export default function ChatPanel({
 
   function send() {
     const text = input.trim();
-    if (!text || wsRef.current?.readyState !== WebSocket.OPEN) return;
+    if (!text) return;
+    if (wsRef.current?.readyState !== WebSocket.OPEN) {
+      toast.push("Yozishmaga ulanish yo'q, biroz kutib qayta urinib ko'ring", "error");
+      return;
+    }
     wsRef.current.send(JSON.stringify({ content: text }));
     setInput("");
   }
@@ -98,7 +122,10 @@ export default function ChatPanel({
       </div>
 
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
-        {messages.length === 0 && (
+        {connectionError && (
+          <p className="text-center text-xs text-gisht">{connectionError}</p>
+        )}
+        {!connectionError && messages.length === 0 && (
           <p className="text-center text-xs text-sahar/40">
             Hali xabar yo&apos;q — birinchi bo&apos;lib yozing
           </p>

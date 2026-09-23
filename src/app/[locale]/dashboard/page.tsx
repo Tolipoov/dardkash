@@ -17,6 +17,7 @@ interface Me {
 
 interface IncomingInvite {
   id: string;
+  status: string;
   speaker_nickname: string;
   created_at: string;
 }
@@ -333,28 +334,53 @@ export default function DashboardPage() {
           </Button>
         </div>
 
-        {incomingInvites.length > 0 && (
+        {incomingInvites.some((inv) => inv.status === "scheduled") && (
           <>
             <h2 className="mt-12 font-display text-xl text-kul">Sizga kelgan takliflar</h2>
             <div className="mt-5 space-y-3">
-              {incomingInvites.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="flex items-center justify-between rounded-2xl border border-yulduz/30 bg-yulduz/5 px-5 py-4"
-                >
-                  <span className="text-sm text-kul">
-                    <b>{inv.speaker_nickname}</b> siz bilan suhbatlashishni xohlaydi
-                  </span>
-                  <div className="flex gap-2">
-                    <Button size="md" onClick={() => respondToInvite(inv.id, true)}>
-                      Qabul qilish
-                    </Button>
-                    <Button size="md" variant="ghost" onClick={() => respondToInvite(inv.id, false)}>
-                      Rad etish
+              {incomingInvites
+                .filter((inv) => inv.status === "scheduled")
+                .map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="flex items-center justify-between rounded-2xl border border-yulduz/30 bg-yulduz/5 px-5 py-4"
+                  >
+                    <span className="text-sm text-kul">
+                      <b>{inv.speaker_nickname}</b> siz bilan suhbatlashishni xohlaydi
+                    </span>
+                    <div className="flex gap-2">
+                      <Button size="md" onClick={() => respondToInvite(inv.id, true)}>
+                        Qabul qilish
+                      </Button>
+                      <Button size="md" variant="ghost" onClick={() => respondToInvite(inv.id, false)}>
+                        Rad etish
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+            </div>
+          </>
+        )}
+
+        {incomingInvites.some((inv) => inv.status === "active") && (
+          <>
+            <h2 className="mt-12 font-display text-xl text-kul">Faol suhbatlaringiz</h2>
+            <div className="mt-5 space-y-3">
+              {incomingInvites
+                .filter((inv) => inv.status === "active")
+                .map((inv) => (
+                  <div
+                    key={inv.id}
+                    className="flex items-center justify-between rounded-2xl border border-barg/30 bg-barg/5 px-5 py-4"
+                  >
+                    <span className="text-sm text-kul">
+                      <b>{inv.speaker_nickname}</b> bilan suhbat boshlangan
+                    </span>
+                    <Button size="md" onClick={() => router.push(`/session/${inv.id}`)}>
+                      Suhbatni boshlash
                     </Button>
                   </div>
-                </div>
-              ))}
+                ))}
             </div>
           </>
         )}

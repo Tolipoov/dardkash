@@ -199,6 +199,7 @@ app.get(
 
 const VALID_WANTS = ["speaker", "listener", "both"];
 const VALID_GENDERS = ["male", "female", "skip"];
+const VALID_LANGUAGES = ["uz", "ru"];
 
 app.get("/api/profile", requireAuth, async (req, res) => {
   try {
@@ -236,7 +237,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
 });
 
 app.post("/api/profile", requireAuth, async (req, res) => {
-  const { nickname, ageRange, gender, phone, wants, topics, bio } = req.body;
+  const { nickname, ageRange, gender, phone, wants, topics, bio, language } = req.body;
 
   if (
     typeof nickname !== "string" ||
@@ -257,6 +258,11 @@ app.post("/api/profile", requireAuth, async (req, res) => {
     return res
       .status(400)
       .json({ status: "error", message: "Noto'g'ri jins qiymati" });
+  }
+  if (language && !VALID_LANGUAGES.includes(language)) {
+    return res
+      .status(400)
+      .json({ status: "error", message: "Noto'g'ri til qiymati" });
   }
   if (!VALID_WANTS.includes(wants)) {
     return res
@@ -295,10 +301,11 @@ app.post("/api/profile", requireAuth, async (req, res) => {
     }
 
     await client.query(
-      `INSERT INTO profiles (user_id, nickname, age_range, gender, phone, wants)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO profiles (user_id, nickname, age_range, gender, phone, wants, language)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (user_id) DO UPDATE
-       SET nickname = $2, age_range = $3, gender = $4, phone = $5, wants = $6, updated_at = now()`,
+       SET nickname = $2, age_range = $3, gender = $4, phone = $5, wants = $6,
+           language = COALESCE($7, profiles.language), updated_at = now()`,
       [
         req.userId,
         nickname.trim(),
@@ -306,6 +313,7 @@ app.post("/api/profile", requireAuth, async (req, res) => {
         gender || null,
         phone || null,
         wants,
+        language || null,
       ],
     );
 
@@ -564,16 +572,6 @@ app.get("/api/session/:sessionId/token", requireAuth, async (req, res) => {
   }
 });
 
-async function createSession(speakerId: string, listenerId: string) {
-  const inserted = await pool.query(
-    `INSERT INTO sessions (speaker_id, listener_id, status, started_at)
-     VALUES ($1, $2, 'active', now())
-     RETURNING id`,
-    [speakerId, listenerId],
-  );
-  return inserted.rows[0].id as string;
-}
-
 app.post("/api/invites", requireAuth, async (req, res) => {
   try {
     const { listenerId } = req.body;
@@ -663,10 +661,10 @@ app.post("/api/invites", requireAuth, async (req, res) => {
 app.get("/api/invites/incoming", requireAuth, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT s.id, s.created_at, p.nickname AS speaker_nickname
+      `SELECT s.id, s.status, s.created_at, p.nickname AS speaker_nickname
        FROM sessions s
        JOIN profiles p ON p.user_id = s.speaker_id
-       WHERE s.listener_id = $1 AND s.status = 'scheduled'
+       WHERE s.listener_id = $1 AND s.status IN ('scheduled', 'active')
        ORDER BY s.created_at DESC`,
       [req.userId],
     );
@@ -868,9 +866,13 @@ app.post("/api/session/match", requireAuth, async (req, res) => {
          AND lp.last_seen_at > now() - interval '90 seconds'
          AND lp.user_id != $1
          AND lp.user_id NOT IN (
-           SELECT speaker_id FROM sessions WHERE status = 'active'
+           SELECT speaker_id FROM sessions
+           WHERE status = 'active'
+              OR (status = 'scheduled' AND created_at > now() - interval '2 minutes')
            UNION
-           SELECT listener_id FROM sessions WHERE status = 'active'
+           SELECT listener_id FROM sessions
+           WHERE status = 'active'
+              OR (status = 'scheduled' AND created_at > now() - interval '2 minutes')
          )
        ORDER BY language_match DESC, topic_overlap DESC, lp.rating_avg DESC, lp.sessions_count ASC
        LIMIT 1`,
@@ -885,11 +887,61 @@ app.post("/api/session/match", requireAuth, async (req, res) => {
       });
     }
 
-    const sessionId = await createSession(
-      req.userId!,
-      candidates.rows[0].user_id,
+    const listenerId = candidates.rows[0].user_id as string;
+
+    const existing = await pool.query(
+      `SELECT id FROM sessions
+       WHERE speaker_id = $1 AND listener_id = $2 AND status IN ('scheduled', 'active')
+       ORDER BY created_at DESC LIMIT 1`,
+      [req.userId, listenerId],
     );
-    res.json({ status: "ok", sessionId });
+
+    let sessionId: string;
+    if (existing.rows.length > 0) {
+      sessionId = existing.rows[0].id;
+    } else {
+      const inserted = await pool.query(
+        `INSERT INTO sessions (speaker_id, listener_id, status)
+         VALUES ($1, $2, 'scheduled')
+         RETURNING id`,
+        [req.userId, listenerId],
+      );
+      sessionId = inserted.rows[0].id;
+    }
+
+    const speakerResult = await pool.query(
+      "SELECT nickname FROM profiles WHERE user_id = $1",
+      [req.userId],
+    );
+    const speakerName = speakerResult.rows[0]?.nickname || "Kimdir";
+
+    notifyUser(listenerId, { type: "incoming_call", sessionId, speakerName });
+
+    const listenerTelegram = await pool.query(
+      "SELECT telegram_id FROM users WHERE id = $1",
+      [listenerId],
+    );
+    const telegramId = listenerTelegram.rows[0]?.telegram_id;
+    if (telegramId) {
+      await sendTelegramMessage(
+        telegramId,
+        `📞 <b>${speakerName}</b> siz bilan suhbatlashishni xohlaydi.`,
+        [
+          [
+            {
+              text: "✅ Qabul qilish",
+              callback_data: `invite_accept:${sessionId}`,
+            },
+            {
+              text: "❌ Rad etish",
+              callback_data: `invite_decline:${sessionId}`,
+            },
+          ],
+        ],
+      );
+    }
+
+    res.json({ status: "ok", sessionId, waiting: true });
   } catch (err) {
     console.error("Moslashtirishda xato:", err);
     res.status(500).json({ status: "error", message: "Moslashtirib bo'lmadi" });
@@ -1058,7 +1110,8 @@ app.post("/api/session/:sessionId/report", requireAuth, async (req, res) => {
 
 app.post("/api/telegram/webhook", async (req, res) => {
   const secret = req.header("X-Telegram-Bot-Api-Secret-Token");
-  if (secret !== process.env.TELEGRAM_WEBHOOK_SECRET) {
+  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (!expectedSecret || secret !== expectedSecret) {
     return res.sendStatus(401);
   }
 
