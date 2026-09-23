@@ -38,9 +38,9 @@ export default function LandingStats() {
 
   return (
     <div className="bg-sahar px-6 pt-16">
-      <div className="mx-auto flex max-w-6xl flex-wrap justify-center gap-x-16 gap-y-6 text-center">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-stretch justify-center gap-x-0 gap-y-6 divide-x divide-kul/10 text-center">
         {showListeners && (
-          <div>
+          <div className="px-10 first:pl-0 last:pr-0">
             <p className="font-display text-3xl text-barg">
               {stats.approvedListeners}+
             </p>
@@ -48,7 +48,7 @@ export default function LandingStats() {
           </div>
         )}
         {showSessions && (
-          <div>
+          <div className="px-10 first:pl-0 last:pr-0">
             <p className="font-display text-3xl text-barg">
               {stats.completedSessions}+
             </p>

@@ -35,6 +35,9 @@
     "roleListenerBody": "Boshqalarni hukm qilmasdan tinglashni bilasiz, vaqtingizni baham ko'rasiz.",
     "safetyTitle": "Xavfsizlik — birinchi o'rinda",
     "safetyBody": "Har bir dardkash profili moderatsiyadan o'tadi. Suhbatni istalgan payt to'xtatish, shikoyat qilish tugmasi doim yoningizda.",
+    "safetyPoint1": "Har bir dardkash profili moderatsiyadan o'tadi",
+    "safetyPoint2": "Suhbatni istalgan payt to'xtatishingiz mumkin",
+    "safetyPoint3": "Shikoyat qilish tugmasi doim yoningizda",
     "footerNote": "Dardkash professional psixologik yordamni almashtirmaydi."
   },
   "auth": {

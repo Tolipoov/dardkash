@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 interface Me {
   nickname: string | null;
   role: string | null;
+  wants: string | null;
 }
 
 export default function SiteHeader() {
@@ -40,6 +41,16 @@ export default function SiteHeader() {
   const isStaff = me?.role === "admin" || me?.role === "moderator";
   const initial = (me?.nickname || "?").trim().charAt(0).toUpperCase();
 
+  // `wants` faqat profil to'liq to'ldirilgandan keyin yoziladi (bitta
+  // tranzaksiyada), shuning uchun uning mavjudligi profil to'liqligining
+  // ishonchli belgisi. Agar "listener"/"both" allaqachon qoplasa, havola
+  // to'g'ridan-to'g'ri kabinetga olib boradi — /onboarding orqali o'tib,
+  // keyin qaytarilish (miltillash) o'rniga.
+  const becomeListenerHref =
+    me?.wants === "listener" || me?.wants === "both"
+      ? "/dashboard"
+      : "/onboarding?role=listener";
+
   return (
     <header className="sticky top-0 z-40 bg-sahar/90 backdrop-blur-md border-b border-kul/10">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
@@ -51,7 +62,7 @@ export default function SiteHeader() {
           <Link href="/#how" className="text-md text-kul/80 hover:text-kul">
             {t("howItWorks")}
           </Link>
-          <Link href="/onboarding?role=listener" className="text-sm text-kul/80 hover:text-kul">
+          <Link href={becomeListenerHref} className="text-sm text-kul/80 hover:text-kul">
             {t("becomeListener")}
           </Link>
         </nav>

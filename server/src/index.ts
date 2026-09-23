@@ -201,7 +201,7 @@ app.get("/api/telegram-test", (_req, res) => {
 
 app.get("/api/me", requireAuth, async (req, res) => {
   const result = await pool.query(
-    `SELECT u.id, u.email, u.telegram_id, p.nickname, p.role, p.phone, lp.status AS listener_status
+    `SELECT u.id, u.email, u.telegram_id, p.nickname, p.role, p.phone, p.wants, lp.status AS listener_status
      FROM users u
      LEFT JOIN profiles p ON p.user_id = u.id
      LEFT JOIN listener_profiles lp ON lp.user_id = u.id

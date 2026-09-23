@@ -200,12 +200,14 @@ export default function OnboardingForm() {
     return null;
   }
 
+  // Asosiy sahifadagi tugmalar endi profilni OLDINDAN (hali shu sahifaga
+  // o'tishdan avval) tekshiradi — shuning uchun bu holat deyarli faqat
+  // to'g'ridan-to'g'ri URL orqali kirilganda ishga tushadi. Shu payt
+  // bo'sh ekran ko'rsatish, "Tekshirilmoqda..." matnini bir lahza
+  // ko'rsatib keyin boshqa sahifaga sakrashdan (miltillashdan) ko'ra
+  // yaxshiroq.
   if (checkingProfile) {
-    return (
-      <div className="px-6 py-20 text-center text-kul/50">
-        {t("checkingProfile")}
-      </div>
-    );
+    return null;
   }
 
   return (
