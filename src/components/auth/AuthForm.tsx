@@ -1,5 +1,6 @@
 "use client";
 import Button from "@/components/ui/Button";
+import { Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
@@ -51,7 +52,18 @@ export default function AuthForm() {
           </div>
         </div>
         <p className="mt-6 text-xs leading-relaxed text-kul/50 text-center">
-          {t("terms")}
+          {t.rich("terms", {
+            termsLink: (chunks) => (
+              <Link href="/terms" className="underline hover:text-kul">
+                {chunks}
+              </Link>
+            ),
+            privacyLink: (chunks) => (
+              <Link href="/privacy" className="underline hover:text-kul">
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
       </div>
     </section>

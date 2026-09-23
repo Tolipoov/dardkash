@@ -45,9 +45,12 @@ export default function OnboardingForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialRole = (searchParams.get("role") as Role) || "";
+  const isEditMode = searchParams.get("edit") === "1";
   const toast = useToast();
   const [step, setStep] = useState<Step>(1);
   const [submitted, setSubmitted] = useState(false);
+  const [checkingProfile, setCheckingProfile] = useState(true);
+  const [listenerStatus, setListenerStatus] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({
     nickname: "",
     ageRange: "",
@@ -59,6 +62,12 @@ export default function OnboardingForm() {
     acceptedRules: false,
   });
 
+  // Onboarding forma ikkita vazifani bajaradi: birinchi marta ro'yxatdan
+  // o'tish va profilni keyinchalik tahrirlash. Asosiy sahifadagi tugmalar
+  // orqali kirgan, profili ALLAQACHON to'liq bo'lgan foydalanuvchini har
+  // safar qayta 3-4 qadamni bosib o'tishga majburlash o'rniga, to'g'ridan-
+  // to'g'ri kabinetga yuboramiz — faqat ataylab "Profilim"dan (?edit=1)
+  // kirilganda forma ko'rsatiladi.
   useEffect(() => {
     fetch("/api/profile", { credentials: "include" })
       .then((res) => {
@@ -73,18 +82,49 @@ export default function OnboardingForm() {
       .then((data) => {
         const p = data?.profile;
         if (!p) return;
+
+        const isComplete = Boolean(
+          p.nickname && p.age_range && p.wants && p.topics?.length,
+        );
+        // URL'dagi rol allaqachon saqlangan rol bilan qoplanganmi (masalan
+        // saqlangan "both" har ikkalasini ham qoplaydi) — aks holda bu
+        // yangi niyat: masalan avval faqat "speaker" bo'lgan odam
+        // "Dardkash bo'lish" havolasini bosgan, uni shunchaki
+        // dashboard'ga qaytarib yuborish noto'g'ri bo'lardi.
+        const roleAlreadyCovered =
+          !initialRole || p.wants === initialRole || p.wants === "both";
+        if (isComplete && !isEditMode && roleAlreadyCovered) {
+          router.push("/dashboard");
+          return;
+        }
+
+        setListenerStatus(p.listener_status ?? null);
         setForm((prev) => ({
           ...prev,
           nickname: p.nickname || prev.nickname,
           ageRange: p.age_range || prev.ageRange,
           gender: p.gender || prev.gender,
           phone: p.phone || prev.phone,
-          role: p.wants || prev.role,
+          // Agar URL orqali kelgan rol saqlangan roldan farq qilsa (masalan
+          // "speaker" bo'lgan odam endi tinglashni ham xohlasa), ikkalasini
+          // ham qoplaydigan "both"ni taklif qilamiz — mavjud rolni
+          // o'chirib tashlamaymiz. Aks holda saqlangan rol ishlatiladi.
+          role: !p.wants
+            ? initialRole || prev.role
+            : roleAlreadyCovered
+              ? p.wants
+              : "both",
           topics: p.topics?.length ? p.topics : prev.topics,
           bio: p.bio || prev.bio,
+          // `listener_profiles` qatori mavjudligi — 4-qadam (qoidalar)
+          // avval haqiqatan ko'rsatilgan va qabul qilingan degani. Faqat
+          // "speaker" bo'lgan foydalanuvchi bu qadamni umuman ko'rmagan,
+          // shuning uchun `p.wants` emas, aynan shu maydon tekshiriladi.
+          acceptedRules: prev.acceptedRules || Boolean(p.listener_status),
         }));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setCheckingProfile(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -122,6 +162,9 @@ export default function OnboardingForm() {
         body: JSON.stringify({ ...form, wants: form.role, language: locale }),
       });
       if (!res.ok) throw new Error("Saqlashda xato");
+      if (isEditMode && listenerStatus === "approved") {
+        toast.push("Profil yangilandi", "success");
+      }
       setSubmitted(true);
     } catch (err) {
       console.error(err);
@@ -129,7 +172,11 @@ export default function OnboardingForm() {
     }
   }
 
-  if (submitted && wantsListener) {
+  // Allaqachon tasdiqlangan dardkash shunchaki profilini tahrirlasa,
+  // "moderatordan o'tishi kerak" ekrani ko'rsatilmaydi — status
+  // backend'da ham 'approved' holicha qoladi (server/src/index.ts'dagi
+  // profil saqlash yo'lida).
+  if (submitted && wantsListener && listenerStatus !== "approved") {
     return (
       <section className="flex min-h-[70vh] items-center justify-center bg-sahar px-6 py-16">
         <div className="max-w-md text-center">
@@ -151,6 +198,14 @@ export default function OnboardingForm() {
   if (submitted) {
     router.push("/dashboard");
     return null;
+  }
+
+  if (checkingProfile) {
+    return (
+      <div className="px-6 py-20 text-center text-kul/50">
+        {t("checkingProfile")}
+      </div>
+    );
   }
 
   return (

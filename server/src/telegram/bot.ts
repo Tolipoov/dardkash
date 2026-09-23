@@ -1,3 +1,10 @@
+// Telegram parse_mode="HTML" bilan yuborilayotgan xabarga foydalanuvchi
+// yozgan matnni to'g'ridan-to'g'ri qo'yish xavfli — yopilmagan teg yoki
+// "<"/"&" belgisi butun xabarni Telegram tomonidan rad ettirishi mumkin.
+export function escapeHtml(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN as string;
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 

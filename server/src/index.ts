@@ -20,6 +20,7 @@ import { attachNotifyWebSocket, notifyUser } from "./notify-ws";
 import {
   answerCallbackQuery,
   editTelegramMessage,
+  escapeHtml,
   sendTelegramMessage,
 } from "./telegram/bot";
 
@@ -60,6 +61,31 @@ app.get("/health", async (_req, res) => {
   } catch (err) {
     console.error("DB xatosi:", err);
     res.status(500).json({ status: "error", message: "Bazaga ulana olmadi" });
+  }
+});
+
+// Marketing (bosh) sahifa uchun umumiy, shaxsni aniqlamaydigan statistika —
+// login talab qilinmaydi, faqat yig'indi sonlar qaytariladi.
+app.get("/api/stats/public", async (_req, res) => {
+  try {
+    const [listenersResult, sessionsResult] = await Promise.all([
+      pool.query(
+        "SELECT COUNT(*)::int AS count FROM listener_profiles WHERE status = 'approved'",
+      ),
+      pool.query(
+        "SELECT COUNT(*)::int AS count FROM sessions WHERE status = 'ended'",
+      ),
+    ]);
+    res.json({
+      status: "ok",
+      approvedListeners: listenersResult.rows[0].count,
+      completedSessions: sessionsResult.rows[0].count,
+    });
+  } catch (err) {
+    console.error("Umumiy statistikani olishda xato:", err);
+    res
+      .status(500)
+      .json({ status: "error", message: "Statistikani olib bo'lmadi" });
   }
 });
 
@@ -216,7 +242,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       [req.userId],
     );
     const bioResult = await pool.query(
-      "SELECT bio FROM listener_profiles WHERE user_id = $1",
+      "SELECT bio, status FROM listener_profiles WHERE user_id = $1",
       [req.userId],
     );
 
@@ -226,6 +252,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
         ...profileResult.rows[0],
         topics: topicsResult.rows.map((r) => r.topic_code),
         bio: bioResult.rows[0]?.bio || "",
+        listener_status: bioResult.rows[0]?.status || null,
       },
     });
   } catch (err) {
@@ -327,18 +354,39 @@ app.post("/api/profile", requireAuth, async (req, res) => {
       );
     }
 
+    // Ariza faqat HAQIQATAN yangi bo'lsa (avval umuman ariza bo'lmagan) yoki
+    // avval rad etilgan bo'lsa (qayta ko'rib chiqish uchun navbatga qaytadi)
+    // admin'ga bildirishnoma yuboriladi — aks holda allaqachon tasdiqlangan
+    // dardkash faqat bio'sini tahrirlasa ham, admin har safar "yangi ariza"
+    // deb bezovta qilinardi.
+    let shouldNotifyAdmin = false;
     if (wantsListener) {
+      const existingListener = await client.query(
+        "SELECT status FROM listener_profiles WHERE user_id = $1",
+        [req.userId],
+      );
+      const previousStatus = existingListener.rows[0]?.status as
+        | string
+        | undefined;
+      shouldNotifyAdmin =
+        previousStatus === undefined || previousStatus === "rejected";
+
       await client.query(
         `INSERT INTO listener_profiles (user_id, bio, status)
          VALUES ($1, $2, 'pending')
-         ON CONFLICT (user_id) DO UPDATE SET bio = $2`,
+         ON CONFLICT (user_id) DO UPDATE
+         SET bio = $2,
+             status = CASE WHEN listener_profiles.status = 'rejected'
+                           THEN 'pending' ELSE listener_profiles.status END,
+             reviewed_at = CASE WHEN listener_profiles.status = 'rejected'
+                                THEN NULL ELSE listener_profiles.reviewed_at END`,
         [req.userId, bio],
       );
     }
 
     await client.query("COMMIT");
 
-    if (wantsListener && process.env.ADMIN_TELEGRAM_CHAT_ID) {
+    if (shouldNotifyAdmin && process.env.ADMIN_TELEGRAM_CHAT_ID) {
       const topicsText = topics.join(", ");
       await sendTelegramMessage(
         process.env.ADMIN_TELEGRAM_CHAT_ID,
@@ -1131,6 +1179,30 @@ app.post("/api/telegram/webhook", async (req, res) => {
       await sendTelegramMessage(
         chatId,
         "Assalomu alaykum! 👋\n\nDardkash botiga xush kelibsiz.\n\nBildirishnomalarni olish uchun avval saytda Telegram orqali kiring: https://dardkash.uz/auth",
+      );
+    }
+    return res.sendStatus(200);
+  }
+
+  // /start'dan boshqa har qanday yozilgan xabar avval sukut bilan
+  // yo'qolib ketardi — hech kimga yetib bormasdi. Maxfiylik siyosati va
+  // foydalanish qoidalari sahifalarida savol/shikoyat/hisobni o'chirish
+  // so'rovi uchun aynan shu bot ko'rsatilgan, shuning uchun endi bunday
+  // xabarlar admin chatiga forward qilinadi.
+  if (typeof message?.text === "string") {
+    const chatId = message.chat.id;
+    const adminChatId = process.env.ADMIN_TELEGRAM_CHAT_ID;
+    if (adminChatId && String(chatId) !== adminChatId) {
+      const senderName = message.from?.username
+        ? `@${message.from.username}`
+        : message.from?.first_name || `ID ${chatId}`;
+      await sendTelegramMessage(
+        adminChatId,
+        `📩 <b>${escapeHtml(senderName)}</b> (chat ID: ${chatId}):\n${escapeHtml(message.text)}`,
+      );
+      await sendTelegramMessage(
+        chatId,
+        "Xabaringiz qabul qilindi, tez orada bog'lanamiz.",
       );
     }
     return res.sendStatus(200);

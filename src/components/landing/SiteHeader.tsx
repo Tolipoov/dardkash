@@ -99,14 +99,14 @@ export default function SiteHeader() {
                       onClick={() => setMenuOpen(false)}
                       className="block px-4 py-2 text-sm text-kul hover:bg-kul/5"
                     >
-                      Shaxsiy kabinet
+                      {t("dashboard")}
                     </Link>
                     <Link
-                      href="/onboarding"
+                      href="/onboarding?edit=1"
                       onClick={() => setMenuOpen(false)}
                       className="block px-4 py-2 text-sm text-kul hover:bg-kul/5"
                     >
-                      Profilni tahrirlash
+                      {t("editProfile")}
                     </Link>
                     {isStaff && (
                       <Link
@@ -114,7 +114,7 @@ export default function SiteHeader() {
                         onClick={() => setMenuOpen(false)}
                         className="block px-4 py-2 text-sm text-kul hover:bg-kul/5"
                       >
-                        Moderatsiya
+                        {t("moderation")}
                       </Link>
                     )}
                     <div className="my-1 border-t border-kul/10" />
@@ -123,7 +123,7 @@ export default function SiteHeader() {
                       onClick={handleLogout}
                       className="block w-full px-4 py-2 text-left text-sm text-gisht hover:bg-gisht/10"
                     >
-                      Chiqish
+                      {t("logout")}
                     </button>
                   </div>
                 </>

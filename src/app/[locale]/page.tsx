@@ -1,4 +1,5 @@
 import AnonymousQuoteCard from "@/components/landing/AnonymousQuoteCard";
+import LandingStats from "@/components/landing/LandingStats";
 import WaveDivider from "@/components/landing/WaveDivider";
 import Button from "@/components/ui/Button";
 import { Link } from "@/i18n/navigation";
@@ -59,6 +60,8 @@ export default async function LandingPage({
       </section>
 
       <WaveDivider />
+
+      <LandingStats />
 
       <section id="how" className="bg-sahar px-6 py-20">
         <div className="mx-auto max-w-6xl">
