@@ -17,14 +17,30 @@ const config: Config = {
         "sahar-dim": "#E4DED0",
         yulduz: "#B4693F",
         "yulduz-dim": "#8F5233",
+        // Yulduz-100 blok (rol kartasi, "tinglovchi bo'lmoqchimisiz") uchun
+        // yorug' fon + unga mos matn ranglari — asosiy "yulduz" ranggacha
+        // tint/shade qilingan, palitradan tashqariga chiqmasdan.
+        "yulduz-100": "#F2E3D6",
+        "yulduz-ink": "#5C3620",
+        "yulduz-ink-2": "#79462B",
         barg: "#5F7D5A",
         "barg-dim": "#4C6548",
+        // Barg-100 blok (rol kartasi, xavfsizlik bloki) uchun xuddi shunday.
+        "barg-100": "#E3E9DD",
+        "barg-ink": "#26331F",
+        "barg-ink-2": "#3A4A32",
         kul: "#2A2924",
         gisht: "#A6503D",
       },
       fontFamily: {
         display: ["var(--font-fraunces)", "Georgia", "serif"],
         sans: ["var(--font-manrope)", "system-ui", "sans-serif"],
+      },
+      spacing: {
+        18: "4.5rem",
+        26: "6.5rem",
+        30: "7.5rem",
+        35: "8.75rem",
       },
       borderRadius: {
         wave: "2rem 0.5rem 2rem 0.5rem",
