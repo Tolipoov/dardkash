@@ -15,6 +15,7 @@
     "ctaSpeak": "Dardimni aytmoqchiman",
     "ctaListen": "Tinglashga tayyorman",
     "trustNote": "Anonim bo'lishingiz mumkin. Suhbat yozib olinmaydi.",
+    "heroImageAlt": "Yomg'irli kunda deraza yonida yolg'iz o'tirgan inson",
     "howTitle": "Qanday ishlaydi",
     "step1Title": "Kim ekaningizni ayting",
     "step1Body": "Google yoki Telegram orqali, bir necha soniyada. Taxallus bilan ham bo'ladi.",
@@ -76,7 +77,8 @@
     "faqQ5": "Suhbatdosh noqulay gap qilsa-chi?",
     "faqA5": "Suhbatni darhol to'xtating va shikoyat tugmasini bosing. Profil ko'rib chiqiladi.",
     "finalCtaTitle": "Gapirishga tayyor bo'lganingizda, shu yerdamiz.",
-    "footerNote": "Dardkash professional psixologik yordamni almashtirmaydi."
+    "footerNote": "Dardkash professional psixologik yordamni almashtirmaydi.",
+    "allRightsReserved": "Barcha huquqlar himoyalangan."
   },
   "auth": {
     "title": "Xush kelibsiz",
@@ -191,7 +193,17 @@
     "incomingCallTitle": "Qo'ng'iroq",
     "incomingCallBody": "{name} siz bilan hozir suhbatlashmoqchi",
     "incomingCallAccept": "Qabul qilish",
-    "incomingCallDecline": "Rad etish"
+    "incomingCallDecline": "Rad etish",
+    "telegramBannerTitle": "Qo'ng'iroqlarni o'tkazib yubormang",
+    "telegramBannerBody": "Telegram'ni ulang — saytda bo'lmagan paytingizda kimdir siz bilan suhbatlashmoqchi bo'lsa, bot orqali xabar olasiz.",
+    "telegramConnect": "Telegram'ni ulash",
+    "telegramConnecting": "Telegram'da \"Start\"ni bosing...",
+    "telegramLinked": "Telegram ulandi",
+    "telegramLinkError": "Havola yaratib bo'lmadi, qayta urinib ko'ring",
+    "recentYouListened": "Siz tingladingiz",
+    "recentYouTalked": "Siz gaplashdingiz",
+    "recentMinutes": "{count} daq",
+    "recentUnderMinute": "< 1 daq"
   },
   "session": {
     "connecting": "Ulanmoqda...",
@@ -224,7 +236,10 @@
     "feedbackMuchBetter": "Ancha yaxshi",
     "feedbackComment": "Fikringizni yozing (ixtiyoriy)",
     "feedbackSubmit": "Yuborish",
-    "feedbackThanks": "Rahmat, fikringiz uchun"
+    "feedbackThanks": "Rahmat, fikringiz uchun",
+    "chat": "Yozishma",
+    "leaveTitle": "Suhbatdan chiqmoqchimisiz?",
+    "leaveBody": "Chiqsangiz, suhbat tugaydi."
   },
   "admin": {
     "queueTitle": "Moderatsiya navbati",

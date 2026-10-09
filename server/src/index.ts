@@ -13,10 +13,17 @@ import { signSession } from "./auth/jwt";
 import { createLiveKitToken } from "./auth/livekit";
 import { requireAuth, requireRole } from "./auth/middleware";
 import { verifyTelegramAuth } from "./auth/telegram";
-import { attachChatWebSocket } from "./chat-ws";
+import { createChatWebSocketServer } from "./chat-ws";
 import { findOrCreateGoogleUser, findOrCreateTelegramUser, pool } from "./db";
 import { runMigrations } from "./migrate";
-import { attachNotifyWebSocket, notifyUser } from "./notify-ws";
+import { createNotifyWebSocketServer, notifyUser } from "./notify-ws";
+import {
+  inviteStatusText,
+  notifyIncomingCall,
+  resolveInviteTelegram,
+} from "./call-notify";
+import { rateLimit } from "./rate-limit";
+import { startSessionSweeper } from "./session-sweeper";
 import {
   answerCallbackQuery,
   editTelegramMessage,
@@ -46,8 +53,28 @@ if (missingEnv.length > 0) {
 const isProduction = process.env.NODE_ENV === "production";
 
 const app = express();
+// Backend faqat 127.0.0.1:4000'da tinglaydi va oldida bitta nginx turadi —
+// shuning uchun X-Forwarded-For'ning oxirgi (nginx qo'shgan) qiymatiga
+// ishonamiz. Busiz req.ip har doim nginx manzili bo'lardi va IP bo'yicha
+// rate limit hammani bitta foydalanuvchi deb hisoblardi.
+app.set("trust proxy", 1);
 app.use(cors({ origin: process.env.APP_BASE_URL, credentials: true }));
 app.use(express.json());
+
+// Noto'g'ri formatdagi sessionId Postgres'ga yetib borib "invalid input
+// syntax for type uuid" bilan 500 qaytarardi — endi darhol 404.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+app.param("sessionId", (_req, res, next, value) => {
+  if (!UUID_RE.test(String(value))) {
+    return res.status(404).json({ status: "error", message: "Suhbat topilmadi" });
+  }
+  next();
+});
+
+const authLimiter = rateLimit({ name: "auth", windowMs: 10 * 60 * 1000, max: 30 });
+const callLimiter = rateLimit({ name: "call", windowMs: 60 * 1000, max: 10 });
+const messageLimiter = rateLimit({ name: "message", windowMs: 60 * 1000, max: 40 });
+const reportLimiter = rateLimit({ name: "report", windowMs: 10 * 60 * 1000, max: 10 });
 app.use(cookieParser());
 
 app.get("/health", async (_req, res) => {
@@ -64,7 +91,19 @@ app.get("/health", async (_req, res) => {
   }
 });
 
-app.get("/api/auth/google/start", (req, res) => {
+// Login'dan keyingi qaytish manzili faqat shu saytning ichki yo'li bo'lishi
+// mumkin. Aks holda `?next=@evil.com` → `https://dardkash.uz@evil.com`
+// kabi manzil orqali foydalanuvchini begona saytga yuborish (open redirect)
+// mumkin bo'lardi.
+function safeNext(value: unknown): string {
+  if (typeof value !== "string") return "/dashboard";
+  if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+    return "/dashboard";
+  }
+  return value;
+}
+
+app.get("/api/auth/google/start", authLimiter, (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
   res.cookie("google_oauth_state", state, {
     httpOnly: true,
@@ -73,8 +112,7 @@ app.get("/api/auth/google/start", (req, res) => {
     maxAge: 10 * 60 * 1000,
   });
 
-  const next =
-    typeof req.query.next === "string" ? req.query.next : "/dashboard";
+  const next = safeNext(req.query.next);
   res.cookie("post_login_redirect", next, {
     httpOnly: true,
     secure: isProduction,
@@ -85,7 +123,7 @@ app.get("/api/auth/google/start", (req, res) => {
   res.redirect(buildGoogleAuthUrl(state));
 });
 
-app.get("/api/auth/google/callback", async (req, res) => {
+app.get("/api/auth/google/callback", authLimiter, async (req, res) => {
   try {
     const code = req.query.code as string;
     const returnedState = req.query.state as string | undefined;
@@ -115,7 +153,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
-    const redirectTo = req.cookies?.post_login_redirect || "/dashboard";
+    const redirectTo = safeNext(req.cookies?.post_login_redirect);
     res.clearCookie("post_login_redirect");
     res.redirect(`${process.env.APP_BASE_URL}${redirectTo}`);
   } catch (err) {
@@ -126,7 +164,7 @@ app.get("/api/auth/google/callback", async (req, res) => {
   }
 });
 
-app.get("/api/auth/telegram/callback", async (req, res) => {
+app.get("/api/auth/telegram/callback", authLimiter, async (req, res) => {
   try {
     const { next: nextParam, ...data } = req.query as any;
     if (!verifyTelegramAuth(data)) {
@@ -145,7 +183,10 @@ app.get("/api/auth/telegram/callback", async (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
-    const redirectTo = req.cookies?.post_login_redirect || "/dashboard";
+    // Telegram widget `next`ni to'g'ridan-to'g'ri callback URL'ida
+    // qaytaradi (Google'dagi kabi cookie orqali emas) — avval bu e'tiborsiz
+    // qolib, "Dardkash bo'lish" orqali kirgan har kim /dashboard'ga tushardi.
+    const redirectTo = safeNext(nextParam ?? req.cookies?.post_login_redirect);
     res.clearCookie("post_login_redirect");
     res.redirect(`${process.env.APP_BASE_URL}${redirectTo}`);
   } catch (err) {
@@ -159,19 +200,6 @@ app.get("/api/auth/telegram/callback", async (req, res) => {
 app.post("/api/auth/logout", (_req, res) => {
   res.clearCookie("dardkash_session");
   res.json({ status: "ok" });
-});
-
-app.get("/api/telegram-test", (_req, res) => {
-  res.send(`
-    <html><body style="font-family:sans-serif;text-align:center;margin-top:100px;">
-      <h2>Telegram login sinovi</h2>
-      <script async src="https://telegram.org/js/telegram-widget.js?22"
-        data-telegram-login="${process.env.TELEGRAM_BOT_USERNAME}"
-        data-size="large"
-        data-auth-url="https://dardkash.uz/api/auth/telegram/callback"
-        data-request-access="write"></script>
-    </body></html>
-  `);
 });
 
 app.get("/api/me", requireAuth, async (req, res) => {
@@ -595,7 +623,7 @@ app.get("/api/session/:sessionId/token", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/invites", requireAuth, async (req, res) => {
+app.post("/api/invites", requireAuth, callLimiter, async (req, res) => {
   try {
     const { listenerId } = req.body;
     if (!listenerId) {
@@ -646,31 +674,12 @@ app.post("/api/invites", requireAuth, async (req, res) => {
     );
     const speakerName = speakerResult.rows[0]?.nickname || "Kimdir";
 
-    notifyUser(listenerId, { type: "new_invite", sessionId, speakerName });
-
-    const listenerTelegram = await pool.query(
-      "SELECT telegram_id FROM users WHERE id = $1",
-      [listenerId],
-    );
-    const telegramId = listenerTelegram.rows[0]?.telegram_id;
-    if (telegramId) {
-      await sendTelegramMessage(
-        telegramId,
-        `💬 <b>${speakerName}</b> siz bilan suhbatlashishni xohlaydi.`,
-        [
-          [
-            {
-              text: "✅ Qabul qilish",
-              callback_data: `invite_accept:${sessionId}`,
-            },
-            {
-              text: "❌ Rad etish",
-              callback_data: `invite_decline:${sessionId}`,
-            },
-          ],
-        ],
-      );
-    }
+    await notifyIncomingCall({
+      listenerId,
+      sessionId,
+      speakerName,
+      kind: "new_invite",
+    });
 
     res.json({ status: "ok", sessionId });
   } catch (err) {
@@ -737,6 +746,10 @@ app.post("/api/invites/:sessionId/accept", requireAuth, async (req, res) => {
       type: "invite_accepted",
       sessionId: req.params.sessionId,
     });
+    await resolveInviteTelegram(
+      req.params.sessionId,
+      "✅ <b>Saytda qabul qildingiz</b>",
+    );
 
     res.json({ status: "ok" });
   } catch (err) {
@@ -763,6 +776,10 @@ app.post("/api/invites/:sessionId/decline", requireAuth, async (req, res) => {
       type: "invite_declined",
       sessionId: req.params.sessionId,
     });
+    await resolveInviteTelegram(
+      req.params.sessionId,
+      "❌ <b>Saytda rad etdingiz</b>",
+    );
 
     res.json({ status: "ok" });
   } catch (err) {
@@ -771,7 +788,39 @@ app.post("/api/invites/:sessionId/decline", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/session/start", requireAuth, async (req, res) => {
+// Dashboard'dagi "So'nggi suhbatlaringiz" bo'limi uchun — avval u
+// statik "hali suhbat yo'q" matni edi, ma'lumot hech qayerdan olinmasdi.
+// Faqat haqiqatan boshlangan (started_at bor) va tugagan suhbatlar.
+app.get("/api/sessions/recent", requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT s.id, s.started_at, s.ended_at,
+              CASE WHEN s.speaker_id = $1 THEN 'speaker' ELSE 'listener' END AS my_role,
+              p.nickname AS partner_nickname,
+              EXISTS (
+                SELECT 1 FROM session_ratings r
+                WHERE r.session_id = s.id AND r.rated_by = $1
+              ) AS rated
+       FROM sessions s
+       JOIN profiles p ON p.user_id =
+         CASE WHEN s.speaker_id = $1 THEN s.listener_id ELSE s.speaker_id END
+       WHERE (s.speaker_id = $1 OR s.listener_id = $1)
+         AND s.status = 'ended'
+         AND s.started_at IS NOT NULL
+       ORDER BY COALESCE(s.ended_at, s.started_at) DESC
+       LIMIT 10`,
+      [req.userId],
+    );
+    res.json({ status: "ok", sessions: result.rows });
+  } catch (err) {
+    console.error("So'nggi suhbatlarni olishda xato:", err);
+    res
+      .status(500)
+      .json({ status: "error", message: "Suhbatlarni olib bo'lmadi" });
+  }
+});
+
+app.post("/api/session/start", requireAuth, callLimiter, async (req, res) => {
   try {
     const { listenerId } = req.body;
     if (!listenerId) {
@@ -822,31 +871,12 @@ app.post("/api/session/start", requireAuth, async (req, res) => {
     );
     const speakerName = speakerResult.rows[0]?.nickname || "Kimdir";
 
-    notifyUser(listenerId, { type: "incoming_call", sessionId, speakerName });
-
-    const listenerTelegram = await pool.query(
-      "SELECT telegram_id FROM users WHERE id = $1",
-      [listenerId],
-    );
-    const telegramId = listenerTelegram.rows[0]?.telegram_id;
-    if (telegramId) {
-      await sendTelegramMessage(
-        telegramId,
-        `📞 <b>${speakerName}</b> siz bilan suhbatlashishni xohlaydi.`,
-        [
-          [
-            {
-              text: "✅ Qabul qilish",
-              callback_data: `invite_accept:${sessionId}`,
-            },
-            {
-              text: "❌ Rad etish",
-              callback_data: `invite_decline:${sessionId}`,
-            },
-          ],
-        ],
-      );
-    }
+    await notifyIncomingCall({
+      listenerId,
+      sessionId,
+      speakerName,
+      kind: "incoming_call",
+    });
 
     res.json({ status: "ok", sessionId, waiting: true });
   } catch (err) {
@@ -857,7 +887,7 @@ app.post("/api/session/start", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/session/match", requireAuth, async (req, res) => {
+app.post("/api/session/match", requireAuth, callLimiter, async (req, res) => {
   try {
     const profileResult = await pool.query(
       "SELECT language FROM profiles WHERE user_id = $1",
@@ -938,31 +968,12 @@ app.post("/api/session/match", requireAuth, async (req, res) => {
     );
     const speakerName = speakerResult.rows[0]?.nickname || "Kimdir";
 
-    notifyUser(listenerId, { type: "incoming_call", sessionId, speakerName });
-
-    const listenerTelegram = await pool.query(
-      "SELECT telegram_id FROM users WHERE id = $1",
-      [listenerId],
-    );
-    const telegramId = listenerTelegram.rows[0]?.telegram_id;
-    if (telegramId) {
-      await sendTelegramMessage(
-        telegramId,
-        `📞 <b>${speakerName}</b> siz bilan suhbatlashishni xohlaydi.`,
-        [
-          [
-            {
-              text: "✅ Qabul qilish",
-              callback_data: `invite_accept:${sessionId}`,
-            },
-            {
-              text: "❌ Rad etish",
-              callback_data: `invite_decline:${sessionId}`,
-            },
-          ],
-        ],
-      );
-    }
+    await notifyIncomingCall({
+      listenerId,
+      sessionId,
+      speakerName,
+      kind: "incoming_call",
+    });
 
     res.json({ status: "ok", sessionId, waiting: true });
   } catch (err) {
@@ -977,7 +988,7 @@ app.post("/api/session/:sessionId/end", requireAuth, async (req, res) => {
     const result = await pool.query(
       `UPDATE sessions SET status = 'ended', ended_at = now()
        WHERE id = $1 AND (speaker_id = $2 OR listener_id = $2) AND status != 'ended'
-       RETURNING id`,
+       RETURNING listener_id`,
       [sessionId, req.userId],
     );
     if (result.rows.length === 0) {
@@ -985,6 +996,10 @@ app.post("/api/session/:sessionId/end", requireAuth, async (req, res) => {
         .status(403)
         .json({ status: "error", message: "Bu suhbatga aloqangiz yo'q" });
     }
+    // sessions_count (matching'dagi yuk taqsimoti mezoni) shu yerda yangilanadi.
+    await pool.query("SELECT refresh_listener_stats($1)", [
+      result.rows[0].listener_id,
+    ]);
     res.json({ status: "ok" });
   } catch (err) {
     console.error("Suhbatni tugatishda xato:", err);
@@ -1020,7 +1035,7 @@ app.get("/api/session/:sessionId/messages", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/session/:sessionId/messages", requireAuth, async (req, res) => {
+app.post("/api/session/:sessionId/messages", requireAuth, messageLimiter, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { content } = req.body;
@@ -1061,13 +1076,13 @@ app.post("/api/session/:sessionId/messages", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/session/:sessionId/rating", requireAuth, async (req, res) => {
+app.post("/api/session/:sessionId/rating", requireAuth, reportLimiter, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { listened, mood, comment } = req.body;
 
     const check = await pool.query(
-      "SELECT id FROM sessions WHERE id = $1 AND (speaker_id = $2 OR listener_id = $2)",
+      "SELECT listener_id FROM sessions WHERE id = $1 AND (speaker_id = $2 OR listener_id = $2)",
       [sessionId, req.userId],
     );
     if (check.rows.length === 0) {
@@ -1076,11 +1091,20 @@ app.post("/api/session/:sessionId/rating", requireAuth, async (req, res) => {
         .json({ status: "error", message: "Bu suhbatga aloqangiz yo'q" });
     }
 
+    // Bitta suhbatga bir kishi faqat bitta baho — qayta yuborilsa yangilanadi.
     await pool.query(
       `INSERT INTO session_ratings (session_id, rated_by, listened, mood, comment)
-       VALUES ($1, $2, $3, $4, $5)`,
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (session_id, rated_by) DO UPDATE SET
+         listened = EXCLUDED.listened,
+         mood = EXCLUDED.mood,
+         comment = EXCLUDED.comment,
+         created_at = now()`,
       [sessionId, req.userId, listened || null, mood || null, comment || null],
     );
+    await pool.query("SELECT refresh_listener_stats($1)", [
+      check.rows[0].listener_id,
+    ]);
 
     res.json({ status: "ok" });
   } catch (err) {
@@ -1091,7 +1115,7 @@ app.post("/api/session/:sessionId/rating", requireAuth, async (req, res) => {
   }
 });
 
-app.post("/api/session/:sessionId/report", requireAuth, async (req, res) => {
+app.post("/api/session/:sessionId/report", requireAuth, reportLimiter, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { reason, details } = req.body;
@@ -1131,6 +1155,82 @@ app.post("/api/session/:sessionId/report", requireAuth, async (req, res) => {
   }
 });
 
+// Google orqali kirgan foydalanuvchi Telegram'ni ulashi uchun bir martalik
+// deep-link: t.me/<bot>?start=<token>. Bot webhook'i tokenni ko'rib,
+// telegram_id'ni shu hisobga yozadi (linkTelegramAccount).
+app.post("/api/telegram/link", requireAuth, authLimiter, async (req, res) => {
+  const botUsername =
+    process.env.TELEGRAM_BOT_USERNAME ||
+    process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME;
+  if (!botUsername) {
+    return res
+      .status(503)
+      .json({ status: "error", message: "Telegram bot sozlanmagan" });
+  }
+  try {
+    const token = crypto.randomBytes(16).toString("hex");
+    await pool.query(
+      "DELETE FROM telegram_link_tokens WHERE user_id = $1 OR expires_at < now()",
+      [req.userId],
+    );
+    await pool.query(
+      `INSERT INTO telegram_link_tokens (token, user_id, expires_at)
+       VALUES ($1, $2, now() + interval '15 minutes')`,
+      [token, req.userId],
+    );
+    res.json({ status: "ok", url: `https://t.me/${botUsername}?start=${token}` });
+  } catch (err) {
+    console.error("Telegram ulash havolasini yaratishda xato:", err);
+    res.status(500).json({ status: "error", message: "Havola yaratib bo'lmadi" });
+  }
+});
+
+async function linkTelegramAccount(
+  token: string,
+  telegramUserId: number,
+  chatId: number,
+) {
+  const tokenResult = await pool.query(
+    `DELETE FROM telegram_link_tokens
+     WHERE token = $1 AND expires_at > now()
+     RETURNING user_id`,
+    [token],
+  );
+  const userId = tokenResult.rows[0]?.user_id;
+  if (!userId) {
+    await sendTelegramMessage(
+      chatId,
+      "Havola eskirgan yoki allaqachon ishlatilgan. Saytdagi \"Telegram'ni ulash\" tugmasini qaytadan bosing.",
+    );
+    return;
+  }
+
+  // Bitta Telegram hisobi faqat bitta Dardkash hisobiga bog'lanadi
+  // (users.telegram_id UNIQUE). Boshqa hisobga (masalan ilgari Telegram
+  // orqali alohida ochilgan) bog'langan bo'lsa — jimgina ko'chirmaymiz.
+  const owner = await pool.query(
+    "SELECT id FROM users WHERE telegram_id = $1",
+    [String(telegramUserId)],
+  );
+  if (owner.rows.length > 0 && owner.rows[0].id !== userId) {
+    await sendTelegramMessage(
+      chatId,
+      "Bu Telegram hisobi boshqa Dardkash hisobiga allaqachon bog'langan. Yordam kerak bo'lsa, shu yerga yozing.",
+    );
+    return;
+  }
+
+  await pool.query("UPDATE users SET telegram_id = $2 WHERE id = $1", [
+    userId,
+    String(telegramUserId),
+  ]);
+  await sendTelegramMessage(
+    chatId,
+    "✅ Telegram hisobingiz ulandi!\n\nEndi saytda bo'lmagan paytingizda ham kimdir siz bilan suhbatlashmoqchi bo'lsa, shu yerga xabar keladi.",
+  );
+  notifyUser(userId, { type: "telegram_linked" });
+}
+
 app.post("/api/telegram/webhook", async (req, res) => {
   const secret = req.header("X-Telegram-Bot-Api-Secret-Token");
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
@@ -1139,6 +1239,14 @@ app.post("/api/telegram/webhook", async (req, res) => {
   }
 
   const message = req.body?.message;
+  const startToken =
+    typeof message?.text === "string"
+      ? message.text.match(/^\/start\s+([a-f0-9]{32})$/)?.[1]
+      : undefined;
+  if (startToken && message.chat?.type === "private") {
+    await linkTelegramAccount(startToken, message.from.id, message.chat.id);
+    return res.sendStatus(200);
+  }
   if (message?.text === "/start") {
     const chatId = message.chat.id;
     const existing = await pool.query(
@@ -1241,8 +1349,12 @@ app.post("/api/telegram/webhook", async (req, res) => {
 
   if (action === "invite_accept" || action === "invite_decline") {
     const sessionId = targetId;
+    if (!UUID_RE.test(sessionId || "")) {
+      await answerCallbackQuery(callback.id);
+      return res.sendStatus(200);
+    }
     const userCheck = await pool.query(
-      `SELECT u.id AS user_id FROM users u
+      `SELECT u.id AS user_id, s.status FROM users u
        JOIN sessions s ON s.listener_id = u.id
        WHERE u.telegram_id = $1 AND s.id = $2`,
       [fromChatId, sessionId],
@@ -1264,6 +1376,11 @@ app.post("/api/telegram/webhook", async (req, res) => {
         await answerCallbackQuery(
           callback.id,
           "Bu taklif allaqachon javob berilgan",
+        );
+        await editTelegramMessage(
+          chatId,
+          messageId,
+          inviteStatusText(userCheck.rows[0].status),
         );
         return res.sendStatus(200);
       }
@@ -1289,6 +1406,11 @@ app.post("/api/telegram/webhook", async (req, res) => {
           callback.id,
           "Bu taklif allaqachon javob berilgan",
         );
+        await editTelegramMessage(
+          chatId,
+          messageId,
+          inviteStatusText(userCheck.rows[0].status),
+        );
         return res.sendStatus(200);
       }
       await editTelegramMessage(chatId, messageId, "❌ <b>Rad etdingiz</b>");
@@ -1306,8 +1428,27 @@ app.post("/api/telegram/webhook", async (req, res) => {
 
 const PORT = process.env.PORT || 4000;
 const server = createServer(app);
-attachChatWebSocket(server);
-attachNotifyWebSocket(server);
+
+// Ikkala WebSocket ham bitta dispetcher orqali. Avval har biri
+// `new WebSocketServer({ server, path })` bilan o'zi ulanardi — lekin `ws`
+// kutubxonasida bunday server o'z yo'liga mos kelmagan HAR QANDAY upgrade
+// so'rovini 400 bilan uzib tashlaydi. Natijada /api/ws/notify har doim 400
+// olardi (dashboard qo'ng'iroq modali hech qachon ishlamasdi), /api/ws/chat
+// esa 101 olib, darhol notify serveri tomonidan uzilardi (video paytida
+// yozishma "ulanish yo'q" xatosi).
+const wsServers: Record<string, ReturnType<typeof createChatWebSocketServer>> = {
+  "/api/ws/chat": createChatWebSocketServer(),
+  "/api/ws/notify": createNotifyWebSocketServer(),
+};
+server.on("upgrade", (req, socket, head) => {
+  const pathname = new URL(req.url || "", "http://localhost").pathname;
+  const wss = wsServers[pathname];
+  if (!wss) {
+    socket.destroy();
+    return;
+  }
+  wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
+});
 
 // Server ishga tushishidan OLDIN migratsiyalarni qo'llaymiz — aks holda
 // (masalan chat_messages jadvali yoki listener_profiles.last_seen_at
@@ -1316,6 +1457,7 @@ attachNotifyWebSocket(server);
 // holatda qolmasin deb butunlay to'xtaydi.
 runMigrations(pool)
   .then(() => {
+    startSessionSweeper();
     server.listen(PORT, () => {
       console.log(
         `Dardkash API ${PORT}-portda ishga tushdi (WebSocket chat va bildirishnoma bilan)`,

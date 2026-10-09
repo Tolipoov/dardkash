@@ -6,9 +6,9 @@ export default async function ListenerPreview() {
   const t = await getTranslations("landing");
 
   return (
-    <section className="grid items-center gap-18 px-6 py-26 md:grid-cols-[1fr_440px] md:px-18">
+    <section className="mx-auto grid max-w-6xl items-center gap-18 px-4 py-26 md:grid-cols-[1fr_440px]">
       <div>
-        <h2 className="mb-5 font-display text-[40px] text-kul">{t("listenerPreviewTitle")}</h2>
+        <h2 className="mb-5 font-display text-[28px] leading-tight md:text-[40px] text-kul">{t("listenerPreviewTitle")}</h2>
         <p className="mb-4 max-w-[520px] text-lg leading-relaxed text-kul/70">
           {t("listenerPreviewBody")}
         </p>

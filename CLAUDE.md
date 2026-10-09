@@ -155,7 +155,7 @@ paytida qo'lda bajarilishi kerak.
 
 ### 1-guruh — production hozir ishlamaydi
 
-1. **[✅ TUZATILDI] Port nomuvofiqligi:** `docker-compose.yml`da
+1. **[✅ TUZATILDI, keyin 3003ga moslandi — #39] Port nomuvofiqligi:** `docker-compose.yml`da
    `dardkash-web` `127.0.0.1:3003:3000` ga bog'langan edi, lekin
    `deploy/dardkash.uz.conf` va `deploy/DEPLOY.md` `127.0.0.1:3001`ga proxy
    qilardi → production'da doim **502 Bad Gateway**. Ikkalasi ham `3001`ga
@@ -520,3 +520,65 @@ turkumiga kirardi — testdan o'tkazmasdan kod o'qish orqali payqash qiyin
 (query sintaksisi to'g'ri, faqat bazada ustun/jadval yo'q). Bu xato turi
 6-guruhdagi kabi "kod o'qishda ko'rinmaydigan, faqat ishga tushirib
 sinaganda topiladigan" xatolarga misol.
+
+### 9-guruh — Uchinchi tur (2026-09-30)
+
+34. **[✅ TUZATILDI] Kirmagan foydalanuvchi "ro'yxatdan o'tish" tugmasini
+    bossa, onboarding bir lahza ko'rinib, keyin /auth'ga sakrardi.**
+    `OnboardingForm`da 401'dan keyin `.finally()` darhol
+    `checkingProfile=false` qilardi. Endi bosh sahifa tugmalari va header
+    kirmagan odamni to'g'ridan-to'g'ri `/auth?next=...`ga olib boradi
+    (`authHrefFor()`, `useLandingCta.ts`), onboarding esa yo'naltirish
+    paytida hech narsa chizmaydi. `next`ga locale prefiksi (`/ru`) qo'shiladi.
+35. **[✅ TUZATILDI] Telegram login `next`ni e'tiborsiz qoldirardi** (faqat
+    Google cookie'sini o'qirdi) va `next` tekshirilmasdi (open redirect,
+    `?next=@evil.com`). `safeNext()` qo'shildi.
+36. **[✅ TUZATILDI] `rating_avg`/`sessions_count` hech qachon yozilmasdi**
+    — matching'ning 3-4 mezonlari ishlamasdi. `003_listener_stats.sql`:
+    `refresh_listener_stats()` funksiyasi (suhbat tugaganda va baho
+    qo'yilganda chaqiriladi), `session_ratings(session_id, rated_by)`
+    UNIQUE. Ball = `stars` yoki `listened`/`mood`dan 1-5.
+37. **[✅ TUZATILDI] "Osilib qolgan" `active` suhbatlar** dardkashni matching'dan
+    abadiy chiqarib qo'yardi (biri 22 kun turgan). `server/src/session-sweeper.ts`
+    har daqiqada LiveKit xonalarini tekshiradi: ketma-ket 2 marta bo'sh →
+    suhbat yopiladi; 4 soatdan uzoq bo'lsa baribir yopiladi.
+38. **[✅ TUZATILDI] Rate limit yo'q edi** — `server/src/rate-limit.ts`
+    (xotirada, bitta konteyner uchun yetarli). `trust proxy = 1`.
+39. `/api/telegram-test` debug sahifasi o'chirildi; noto'g'ri `sessionId`
+    endi 500 emas, 404 (`app.param`). Repodagi nginx namunasi porti
+    serverdagi haqiqiy `3003`ga moslandi.
+    **Qolgan:** chat WebSocket xabarlari rate limit'siz; kriziz-yordam statik.
+40. **[✅ QO'SHILDI] Offlayn dardkashga Telegram orqali qo'ng'iroq/taklif
+    xabari.** Kod avval ham Telegram yuborardi, lekin faqat Telegram orqali
+    login qilganlarga (4 tasdiqlangan dardkashdan 3 tasida `telegram_id`
+    yo'q edi) va onlayn bo'lsa ham. Endi: `server/src/call-notify.ts` —
+    saytda bo'lmasa darhol Telegram, saytda bo'lsa modal + 30 soniyada
+    javob bo'lmasa Telegram; saytda javob berilsa Telegram'dagi tugmali
+    xabar holat matniga almashtiriladi (`sessions.tg_chat_id/tg_message_id`).
+    Google foydalanuvchilari uchun dashboard'da "Telegram'ni ulash" banneri:
+    `POST /api/telegram/link` → `t.me/<bot>?start=<token>` → webhook
+    `/start <token>` → `users.telegram_id` (`004_telegram_link.sql`).
+    Nickname endi `escapeHtml` qilinadi.
+41. **[✅ TUZATILDI, eng og'ir] Ikkala WebSocket ham ishlamasdi.** `chat-ws.ts`
+    va `notify-ws.ts` har biri `new WebSocketServer({ server, path })` bilan
+    bitta HTTP serverga ulanardi — `ws` kutubxonasida bunday server o'z
+    yo'liga mos kelmagan upgrade'ni **400 bilan uzadi**. Natija:
+    `/api/ws/notify` doim 400 (dashboard qo'ng'iroq modali hech qachon
+    chiqmagan, `isUserConnected` doim false), `/api/ws/chat` esa 101 olib
+    darhol uzilardi (video paytida xabar "ulanish yo'q"). Endi ikkalasi
+    `noServer: true` va `index.ts`dagi yagona `server.on("upgrade")`
+    dispetcheri orqali. **Qoida: yangi WS qo'shsangiz, shu dispetcherga qo'shing.**
+42. **[✅ TUZATILDI] Kamera o'chirib-yoqilgach o'z videosi ko'rinmasdi** — local
+    `<video>` shartli render qilinardi; endi doim DOM'da +
+    `RoomEvent.LocalTrackPublished`da qayta `attach`.
+43. **[✅ YANGILANDI] Suhbat ekrani** — `fixed inset-0 h-[100dvh]` (header/footer
+    ustidan), boshqaruv paneli lucide SVG ikonkalar bilan bitta qatorda
+    (mikrofon, kamera, tugatish, yozishma + o'qilmagan belgisi, shikoyat),
+    yozishma telefonda to'liq kenglikda. "Orqaga" tugmasi va tab yopish
+    endi tasdiqsiz chiqarib yubormaydi (`popstate` + `beforeunload`).
+44. **[✅ TUZATILDI]** Dashboard'dagi dardkashlar ro'yxati 15 soniyada va
+    oynaga qaytilganda yangilanadi (avval yangi tasdiqlangan dardkash
+    faqat sahifa yangilanganda ko'rinardi). `requireAuth` endi bazadan
+    o'chirilgan foydalanuvchi cookie'sini 401 bilan rad etadi (avval FK
+    xatosi bilan 500).
+

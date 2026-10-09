@@ -8,9 +8,9 @@ export default function SiteFooter() {
 
   return (
     <footer className="bg-tun-deep text-sahar/70">
-      <div className="mx-auto max-w-6xl px-6 py-10 text-sm">
-        <p className="max-w-lg">{t("footerNote")}</p>
-        <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-sahar/60">
+      <div className="mx-auto max-w-6xl px-6 py-8 text-center text-xs sm:py-10 sm:text-left sm:text-sm">
+        <p className="mx-auto max-w-lg sm:mx-0">{t("footerNote")}</p>
+        <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sahar/60 sm:mt-5 sm:justify-start">
           <Link href="/terms" className="hover:text-sahar">
             {tTerms("pageTitle")}
           </Link>
@@ -18,7 +18,9 @@ export default function SiteFooter() {
             {tPrivacy("pageTitle")}
           </Link>
         </div>
-        <p className="mt-4 text-sahar/40">© {new Date().getFullYear()} Dardkash.uz</p>
+        <p className="mt-4 text-sahar/40">
+          © {new Date().getFullYear()} Dardkash.uz. {t("allRightsReserved")}
+        </p>
       </div>
     </footer>
   );

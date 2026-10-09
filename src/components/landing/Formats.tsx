@@ -11,7 +11,7 @@ export default async function Formats() {
 
   return (
     <div className="pt-30">
-      <h2 className="mb-3 font-display text-[40px] text-kul">{t("formatsTitle")}</h2>
+      <h2 className="mb-3 font-display text-[28px] leading-tight md:text-[40px] text-kul">{t("formatsTitle")}</h2>
       <p className="mb-12 text-[17px] text-kul/60">{t("formatsSubtitle")}</p>
       <div className="grid gap-5 md:grid-cols-3">
         {items.map(({ Icon, t: title, d }) => (

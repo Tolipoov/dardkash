@@ -4,6 +4,7 @@ import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import TopicTag from "@/components/ui/TopicTag";
 import { useRouter } from "@/i18n/navigation";
+import { authHrefFor } from "@/components/landing/useLandingCta";
 import { TOPIC_CODES, type TopicCode } from "@/lib/topics";
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
@@ -69,12 +70,15 @@ export default function OnboardingForm() {
   // to'g'ri kabinetga yuboramiz — faqat ataylab "Profilim"dan (?edit=1)
   // kirilganda forma ko'rsatiladi.
   useEffect(() => {
+    let redirecting = false;
     fetch("/api/profile", { credentials: "include" })
       .then((res) => {
         if (res.status === 401) {
-          router.push(
-            `/auth?next=/onboarding${form.role ? `?role=${form.role}` : ""}`,
-          );
+          // `replace` — orqaga bosilganda yana shu bo'sh sahifaga
+          // qaytib, qayta auth'ga otilmasligi uchun. `redirecting` esa
+          // navigatsiya tugaguncha forma bir lahza ham ko'rinmasligi uchun.
+          redirecting = true;
+          router.replace(authHrefFor(initialRole || null, locale));
           return null;
         }
         return res.ok ? res.json() : null;
@@ -94,7 +98,8 @@ export default function OnboardingForm() {
         const roleAlreadyCovered =
           !initialRole || p.wants === initialRole || p.wants === "both";
         if (isComplete && !isEditMode && roleAlreadyCovered) {
-          router.push("/dashboard");
+          redirecting = true;
+          router.replace("/dashboard");
           return;
         }
 
@@ -124,7 +129,9 @@ export default function OnboardingForm() {
         }));
       })
       .catch(() => {})
-      .finally(() => setCheckingProfile(false));
+      .finally(() => {
+        if (!redirecting) setCheckingProfile(false);
+      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

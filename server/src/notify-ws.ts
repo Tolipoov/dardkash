@@ -1,5 +1,4 @@
 import { WebSocketServer, WebSocket } from "ws";
-import type { Server } from "http";
 import { verifySession } from "./auth/jwt";
 
 // Har bir foydalanuvchi (userId) uchun, uning ochiq dashboard
@@ -12,8 +11,10 @@ function parseCookie(header: string | undefined, name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-export function attachNotifyWebSocket(server: Server) {
-  const wss = new WebSocketServer({ server, path: "/api/ws/notify" });
+// `noServer` — upgrade so'rovlarini index.ts'dagi yagona dispetcher
+// yo'naltiradi (sababi o'sha yerda yozilgan).
+export function createNotifyWebSocketServer() {
+  const wss = new WebSocketServer({ noServer: true });
 
   // "Qo'ng'iroq" bildirishnomasi (incoming_call/new_invite) uchun bu
   // socket uzoq vaqt jim turishi mumkin — bu esa nginx'ning standart
@@ -55,6 +56,7 @@ export function attachNotifyWebSocket(server: Server) {
   }, 30000);
 
   wss.on("close", () => clearInterval(heartbeat));
+  return wss;
 }
 
 // Boshqa joylardan (masalan /api/session/start ichidan) chaqiriladi —
@@ -69,4 +71,16 @@ export function notifyUser(userId: string, payload: object) {
   for (const ws of sockets) {
     if (ws.readyState === WebSocket.OPEN) ws.send(message);
   }
+}
+
+// Foydalanuvchining hozir saytda (dashboard ochiq, socket ulangan) ekanini
+// bildiradi — Telegram xabarini darhol yoki kechiktirib yuborishni
+// hal qilish uchun ishlatiladi.
+export function isUserConnected(userId: string): boolean {
+  const sockets = connections.get(userId);
+  if (!sockets) return false;
+  for (const ws of sockets) {
+    if (ws.readyState === WebSocket.OPEN) return true;
+  }
+  return false;
 }

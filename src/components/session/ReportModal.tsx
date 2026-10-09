@@ -38,7 +38,7 @@ export default function ReportModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-tun-deep/70 px-6">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-tun-deep/70 px-6">
       <div className="w-full max-w-sm rounded-wave bg-sahar p-7">
         {sent ? (
           <>

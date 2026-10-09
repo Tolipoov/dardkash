@@ -20,10 +20,12 @@ export default function LandingPage({
     <div className="bg-sahar text-kul">
       <Hero />
       <RoleCards />
-      <section className="rounded-t-[48px] bg-sahar-dim px-6 pt-24 md:px-18">
-        <HowItWorks />
-        <Formats />
-        <SafetyBlock />
+      <section className="rounded-t-[48px] bg-sahar-dim pt-24">
+        <div className="mx-auto max-w-6xl px-4">
+          <HowItWorks />
+          <Formats />
+          <SafetyBlock />
+        </div>
       </section>
       <ListenerPreview />
       <BecomeListener />

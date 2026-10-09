@@ -5,6 +5,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { locales, type Locale } from "@/i18n/config";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import Button from "@/components/ui/Button";
+import { authHrefFor } from "@/components/landing/useLandingCta";
 
 interface Me {
   nickname: string | null;
@@ -46,10 +47,13 @@ export default function SiteHeader() {
   // ishonchli belgisi. Agar "listener"/"both" allaqachon qoplasa, havola
   // to'g'ridan-to'g'ri kabinetga olib boradi — /onboarding orqali o'tib,
   // keyin qaytarilish (miltillash) o'rniga.
+  // Tizimga kirmagan bo'lsa — to'g'ridan-to'g'ri /auth'ga.
   const becomeListenerHref =
-    me?.wants === "listener" || me?.wants === "both"
-      ? "/dashboard"
-      : "/onboarding?role=listener";
+    checked && !me
+      ? authHrefFor("listener", locale)
+      : me?.wants === "listener" || me?.wants === "both"
+        ? "/dashboard"
+        : "/onboarding?role=listener";
 
   return (
     <header className="sticky top-0 z-40 bg-sahar/90 backdrop-blur-md border-b border-kul/10">
@@ -68,14 +72,15 @@ export default function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <div className="flex overflow-hidden rounded-full border border-kul/15 text-xs">
+          <div className="flex gap-0.5 rounded-full bg-sahar-dim p-1 text-xs">
             {locales.map((loc) => (
               <Link
                 key={loc}
                 href={pathname}
                 locale={loc}
-                className={`px-3 py-1.5 font-semibold ${
-                  loc === locale ? "bg-kul text-sahar" : "text-kul/60 hover:bg-kul/5"
+                aria-current={loc === locale ? "true" : undefined}
+                className={`rounded-full px-3 py-1 font-bold transition-colors ${
+                  loc === locale ? "bg-barg text-sahar shadow-sm" : "text-kul/60 hover:text-barg"
                 }`}
               >
                 {loc.toUpperCase()}

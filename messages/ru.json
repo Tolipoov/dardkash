@@ -15,6 +15,7 @@
     "ctaSpeak": "Хочу выговориться",
     "ctaListen": "Готов слушать",
     "trustNote": "Вы можете остаться анонимным. Разговоры не записываются.",
+    "heroImageAlt": "Человек сидит один у окна в дождливый день",
     "howTitle": "Как это работает",
     "step1Title": "Расскажите, кто вы",
     "step1Body": "Через Google или Telegram, за несколько секунд. Можно и под псевдонимом.",
@@ -76,7 +77,8 @@
     "faqQ5": "А если собеседник ведёт себя неподобающе?",
     "faqA5": "Сразу завершите разговор и нажмите кнопку жалобы. Профиль будет рассмотрен.",
     "finalCtaTitle": "Когда будете готовы поговорить — мы здесь.",
-    "footerNote": "Dardkash не заменяет профессиональную психологическую помощь."
+    "footerNote": "Dardkash не заменяет профессиональную психологическую помощь.",
+    "allRightsReserved": "Все права защищены."
   },
   "auth": {
     "title": "Добро пожаловать",
@@ -191,7 +193,17 @@
     "incomingCallTitle": "Звонок",
     "incomingCallBody": "{name} хочет поговорить с вами прямо сейчас",
     "incomingCallAccept": "Принять",
-    "incomingCallDecline": "Отклонить"
+    "incomingCallDecline": "Отклонить",
+    "telegramBannerTitle": "Не пропускайте звонки",
+    "telegramBannerBody": "Подключите Telegram — если кто-то захочет с вами поговорить, пока вас нет на сайте, бот пришлёт уведомление.",
+    "telegramConnect": "Подключить Telegram",
+    "telegramConnecting": "Нажмите «Start» в Telegram...",
+    "telegramLinked": "Telegram подключён",
+    "telegramLinkError": "Не удалось создать ссылку, попробуйте ещё раз",
+    "recentYouListened": "Вы слушали",
+    "recentYouTalked": "Вы делились",
+    "recentMinutes": "{count} мин",
+    "recentUnderMinute": "< 1 мин"
   },
   "session": {
     "connecting": "Подключение...",
@@ -224,7 +236,10 @@
     "feedbackMuchBetter": "Гораздо лучше",
     "feedbackComment": "Ваш комментарий (необязательно)",
     "feedbackSubmit": "Отправить",
-    "feedbackThanks": "Спасибо за отзыв"
+    "feedbackThanks": "Спасибо за отзыв",
+    "chat": "Чат",
+    "leaveTitle": "Выйти из разговора?",
+    "leaveBody": "Если выйти, разговор завершится."
   },
   "admin": {
     "queueTitle": "Очередь модерации",

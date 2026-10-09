@@ -1,5 +1,4 @@
-import { WebSocketServer, WebSocket } from "ws";
-import type { Server } from "http";
+import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { verifySession } from "./auth/jwt";
 import { pool } from "./db";
 
@@ -13,8 +12,10 @@ function parseCookie(header: string | undefined, name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-export function attachChatWebSocket(server: Server) {
-  const wss = new WebSocketServer({ server, path: "/api/ws/chat" });
+// `noServer` — upgrade so'rovlarini index.ts'dagi yagona dispetcher
+// yo'naltiradi (sababi o'sha yerda yozilgan).
+export function createChatWebSocketServer() {
+  const wss = new WebSocketServer({ noServer: true });
 
   // notify-ws.ts'dagi bilan bir xil sabab: uzoq suhbat davomida hech kim
   // yozmasligi mumkin — ping bo'lmasa, nginx/proksi bu "jim" ulanishni
@@ -25,10 +26,22 @@ export function attachChatWebSocket(server: Server) {
       ws.isAlive = true;
     });
 
+    // Xabar tinglovchisini DARHOL ulaymiz — pastdagi DB tekshiruvi
+    // (await) paytida kelgan xabarlar aks holda jimgina yo'qolardi.
+    // Ishlov berish esa tekshiruv tugaguncha kutadi.
+    let resolveReady: (ok: boolean) => void = () => {};
+    const ready = new Promise<boolean>((r) => (resolveReady = r));
+    let onReadyMessage: ((raw: RawData) => Promise<void>) | null = null;
+    ws.on("message", async (raw) => {
+      if (!(await ready)) return;
+      await onReadyMessage?.(raw);
+    });
+
     const token = parseCookie(req.headers.cookie, "dardkash_session");
     const session = token ? verifySession(token) : null;
 
     if (!session) {
+      resolveReady(false);
       ws.close(4001, "Login qilinmagan");
       return;
     }
@@ -36,6 +49,7 @@ export function attachChatWebSocket(server: Server) {
     const url = new URL(req.url || "", "http://localhost");
     const sessionId = url.searchParams.get("sessionId");
     if (!sessionId) {
+      resolveReady(false);
       ws.close(4002, "sessionId kerak");
       return;
     }
@@ -43,11 +57,14 @@ export function attachChatWebSocket(server: Server) {
     // Foydalanuvchi haqiqatan ham shu suhbatning ishtirokchisi ekanini
     // tekshiramiz — aks holda begona odam boshqalarning yozishmasini
     // "tinglashi" mumkin bo'lardi.
-    const check = await pool.query(
-      "SELECT id FROM sessions WHERE id = $1 AND (speaker_id = $2 OR listener_id = $2)",
-      [sessionId, session.userId],
-    );
+    const check = await pool
+      .query(
+        "SELECT id FROM sessions WHERE id = $1 AND (speaker_id = $2 OR listener_id = $2)",
+        [sessionId, session.userId],
+      )
+      .catch(() => ({ rows: [] as unknown[] }));
     if (check.rows.length === 0) {
+      resolveReady(false);
       ws.close(4003, "Bu suhbatga aloqangiz yo'q");
       return;
     }
@@ -56,7 +73,7 @@ export function attachChatWebSocket(server: Server) {
     if (!rooms.has(sessionId)) rooms.set(sessionId, new Set());
     rooms.get(sessionId)!.add(client);
 
-    ws.on("message", async (raw) => {
+    onReadyMessage = async (raw) => {
       try {
         const data = JSON.parse(raw.toString());
         if (typeof data.content !== "string" || !data.content.trim()) return;
@@ -82,7 +99,8 @@ export function attachChatWebSocket(server: Server) {
           ws.send(JSON.stringify({ type: "error", message: "Xabar yuborib bo'lmadi" }));
         }
       }
-    });
+    };
+    resolveReady(true);
 
     ws.on("close", () => {
       rooms.get(sessionId)?.delete(client);
@@ -102,4 +120,5 @@ export function attachChatWebSocket(server: Server) {
   }, 30000);
 
   wss.on("close", () => clearInterval(heartbeat));
+  return wss;
 }

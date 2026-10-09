@@ -10,8 +10,8 @@ export default function RoleCards() {
   const { hrefFor } = useLandingCta();
 
   return (
-    <section className="px-6 pb-26 pt-6 md:px-18">
-      <h2 className="mb-3 font-display text-[40px] text-kul">{t("rolesTitle")}</h2>
+    <section className="mx-auto max-w-6xl px-4 pb-26 pt-6">
+      <h2 className="mb-3 font-display text-[28px] leading-tight md:text-[40px] text-kul">{t("rolesTitle")}</h2>
       <p className="mb-12 text-[17px] text-kul/60">{t("rolesSubtitle")}</p>
       <div className="grid gap-6 md:grid-cols-2">
         <RoleCard
@@ -50,7 +50,7 @@ function RoleCard({
   return (
     <div className={`relative flex flex-col gap-5 overflow-hidden rounded-[40px] p-8 md:p-12 ${styles.bg}`}>
       <div className={`absolute -right-[70px] -top-[70px] size-[220px] rounded-full ${styles.blob}`} />
-      <h3 className={`relative font-display text-[32px] ${styles.h}`}>{title}</h3>
+      <h3 className={`relative font-display text-2xl md:text-[32px] ${styles.h}`}>{title}</h3>
       <p className={`relative max-w-[440px] text-[17px] leading-relaxed ${styles.p}`}>{text}</p>
       <div className="relative mt-3">
         <Link href={href} className={isBarg ? ctaPrimarySmall : ctaYulduzOutline}>

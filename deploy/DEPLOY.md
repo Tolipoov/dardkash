@@ -14,9 +14,9 @@ zarar yetkazmaslik uchun:
 docker --version
 docker compose version
 
-# 3001-port band emasligini tekshirish (agar band bo'lsa, docker-compose.yml
+# 3003-port band emasligini tekshirish (agar band bo'lsa, docker-compose.yml
 # va nginx konfida boshqa raqamga, masalan 3002 ga o'zgartiring)
-sudo ss -tulpn | grep 3001
+sudo ss -tulpn | grep 3003
 
 # Nginx bor-yo'qligini va sites-enabled papkasini tekshirish
 nginx -v
@@ -26,9 +26,9 @@ ls /etc/nginx/sites-enabled/
 grep -r "server_name" /etc/nginx/sites-enabled/
 ```
 
-Agar 3001-port band bo'lsa: `docker-compose.yml` faylida `"127.0.0.1:3001:3000"`
-qatoridagi `3001` ni bo'sh portga almashtiring, va `deploy/dardkash.uz.conf`
-faylidagi `proxy_pass http://127.0.0.1:3001;` qatorlarini ham mos ravishda
+Agar 3003-port band bo'lsa: `docker-compose.yml` faylida `"127.0.0.1:3003:3000"`
+qatoridagi `3003` ni bo'sh portga almashtiring, va `deploy/dardkash.uz.conf`
+faylidagi `proxy_pass http://127.0.0.1:3003;` qatorlarini ham mos ravishda
 yangilang.
 
 ## 1. Kodni serverga yuklash
@@ -69,7 +69,7 @@ Tekshirish:
 
 ```bash
 docker ps | grep dardkash-web        # konteyner "Up" holatda bo'lishi kerak
-curl http://127.0.0.1:3001           # HTML qaytishi kerak
+curl http://127.0.0.1:3003           # HTML qaytishi kerak
 docker logs dardkash-web --tail 50   # xato bo'lsa shu yerda ko'rinadi
 ```
 
@@ -146,4 +146,4 @@ Bu faqat `dardkash-web` konteynerini qayta quradi, boshqa konteynerlar
 | Sayt ochilmayapti | `docker logs dardkash-web` va `sudo tail -f /var/log/nginx/error.log` |
 | 502 Bad Gateway | Konteyner ishlamayapti — `docker ps` bilan tekshiring, `docker compose up -d` qayta bajaring |
 | Boshqa sayt ishlamay qoldi | `sudo nginx -t` xato ko'rsatadimi tekshiring, agar shu loyiha konfida xato bo'lsa `sudo rm /etc/nginx/sites-enabled/dardkash.uz && sudo systemctl reload nginx` bilan vaqtincha o'chiring |
-| Port band xatosi | `sudo ss -tulpn \| grep 3001`, boshqa portga o'zgartiring |
+| Port band xatosi | `sudo ss -tulpn \| grep 3003`, boshqa portga o'zgartiring |

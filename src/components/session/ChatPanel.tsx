@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { buildWsUrl } from "@/lib/ws";
 import { useToast } from "@/components/ui/Toast";
+import { SendHorizontal, X } from "lucide-react";
 
 // Bu kodlar bilan yopilsa, muammo vaqtinchalik emas (login yo'q, sessionId
 // yo'q, yoki bu suhbatga aloqasi yo'q) — qayta ulanishga urinish faqat
@@ -21,18 +22,24 @@ export default function ChatPanel({
   myUserId,
   open,
   onClose,
+  onIncoming,
 }: {
   sessionId: string;
   myUserId: string;
   open: boolean;
   onClose: () => void;
+  // Suhbatdoshdan yangi xabar kelganda — panel yopiq bo'lsa, tugmada
+  // "o'qilmagan" belgisini ko'rsatish uchun.
+  onIncoming?: () => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
+  const onIncomingRef = useRef(onIncoming);
+  onIncomingRef.current = onIncoming;
 
   // Avval tarixni yuklaymiz, keyin real vaqt uchun WebSocket ulanamiz
   useEffect(() => {
@@ -61,6 +68,7 @@ export default function ChatPanel({
         const data = JSON.parse(event.data);
         if (data.type === "message") {
           setMessages((prev) => [...prev, data.message]);
+          if (data.message.sender_id !== myUserId) onIncomingRef.current?.();
         } else if (data.type === "error") {
           toast.push(data.message || "Xabar yuborib bo'lmadi", "error");
         }
@@ -92,7 +100,10 @@ export default function ChatPanel({
   }, [sessionId]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // scrollIntoView o'rniga faqat ro'yxatning o'zini aylantiramiz —
+    // telefonda scrollIntoView butun sahifani ham siljitib yuborishi mumkin.
+    const list = listRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
   }, [messages]);
 
   function send() {
@@ -109,19 +120,19 @@ export default function ChatPanel({
   if (!open) return null;
 
   return (
-    <div className="fixed bottom-24 right-6 z-40 flex h-[420px] w-[320px] flex-col rounded-2xl border border-sahar/15 bg-tun-deep shadow-2xl">
-      <div className="flex items-center justify-between border-b border-sahar/10 px-4 py-3">
+    <div className="fixed inset-x-3 bottom-28 z-[70] flex h-[min(380px,50dvh)] flex-col overflow-hidden rounded-2xl border border-sahar/15 bg-tun-deep/95 shadow-2xl backdrop-blur-md sm:inset-x-auto sm:bottom-32 sm:right-6 sm:w-[340px]">
+      <div className="flex items-center justify-between border-b border-sahar/10 px-4 py-2.5">
         <span className="text-sm font-semibold text-sahar">Yozishma</span>
         <button
           onClick={onClose}
           className="text-sahar/50 hover:text-sahar"
           aria-label="Yopish"
         >
-          ✕
+          <X size={18} />
         </button>
       </div>
 
-      <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
+      <div ref={listRef} className="flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-3 py-3">
         {connectionError && (
           <p className="text-center text-xs text-gisht">{connectionError}</p>
         )}
@@ -138,7 +149,7 @@ export default function ChatPanel({
               className={`flex ${mine ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
+                className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm [overflow-wrap:anywhere] ${
                   mine ? "bg-barg text-sahar" : "bg-sahar/10 text-sahar"
                 }`}
               >
@@ -147,22 +158,28 @@ export default function ChatPanel({
             </div>
           );
         })}
-        <div ref={bottomRef} />
       </div>
 
-      <div className="flex items-center gap-2 border-t border-sahar/10 p-3">
+      <div className="flex items-center gap-2 border-t border-sahar/10 p-2.5">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder="Xabar yozing..."
-          className="flex-1 rounded-full bg-sahar/10 px-4 py-2 text-sm text-sahar outline-none placeholder:text-sahar/40"
+          enterKeyHint="send"
+          // min-w-0 — input'ning brauzer bergan minimal kengligi flex'da
+          // torayishiga to'sqinlik qilib, yuborish tugmasini ekrandan
+          // chiqarib yuborardi. text-base (16px) telefonda — iOS 16px'dan
+          // kichik shriftli maydonga bosilganda sahifani kattalashtiradi
+          // (yonga scroll paydo bo'lardi).
+          className="min-w-0 flex-1 rounded-full bg-sahar/10 px-4 py-2 text-base text-sahar outline-none placeholder:text-sahar/40 sm:text-sm"
         />
         <button
           onClick={send}
-          className="rounded-full bg-yulduz px-4 py-2 text-sm font-semibold text-tun-deep"
+          aria-label="Yuborish"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-barg text-sahar hover:bg-barg/90"
         >
-          →
+          <SendHorizontal size={18} />
         </button>
       </div>
     </div>
