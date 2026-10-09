@@ -45,12 +45,17 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 // requireAuth'dan KEYIN ishlatiladi (req.userId allaqachon bor bo'lishi kerak)
 export function requireRole(allowedRoles: string[]) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const result = await pool.query(
-      "SELECT role FROM profiles WHERE user_id = $1",
-      [req.userId]
-    );
+    let role = "user";
+    try {
+      const result = await pool.query(
+        "SELECT role FROM profiles WHERE user_id = $1",
+        [req.userId]
+      );
+      role = result.rows[0]?.role ?? "user";
+    } catch (err) {
+      return next(err);
+    }
 
-    const role = result.rows[0]?.role ?? "user";
     if (!allowedRoles.includes(role)) {
       return res.status(403).json({ status: "error", message: "Bu amal uchun ruxsatingiz yo'q" });
     }

@@ -1,4 +1,5 @@
 import { RoomServiceClient } from "livekit-server-sdk";
+import { inviteStatusText, resolveInviteTelegram } from "./call-notify";
 import { pool } from "./db";
 
 // "Osilib qolgan" suhbatlarni yopuvchi fon vazifasi.
@@ -18,6 +19,9 @@ import { pool } from "./db";
 const SWEEP_INTERVAL_MS = 60 * 1000;
 const GRACE_MINUTES = 2;
 const MAX_SESSION_HOURS = 4;
+// Javob berilmagan taklif shuncha vaqtdan keyin bekor bo'ladi. Avval ular
+// abadiy `scheduled` qolib, dashboard'dagi takliflar ro'yxatida turaverardi.
+const INVITE_TTL_HOURS = 24;
 
 const roomService = new RoomServiceClient(
   process.env.LIVEKIT_API_URL || "http://dardkash-livekit:7880",
@@ -45,7 +49,25 @@ async function endSessions(ids: string[], reason: string) {
   }
 }
 
+async function expireInvites() {
+  const expired = await pool.query(
+    `UPDATE sessions SET status = 'cancelled', ended_at = now()
+     WHERE status = 'scheduled'
+       AND created_at < now() - make_interval(hours => $1)
+     RETURNING id`,
+    [INVITE_TTL_HOURS],
+  );
+  for (const { id } of expired.rows) {
+    await resolveInviteTelegram(id, inviteStatusText("expired"));
+  }
+  if (expired.rows.length > 0) {
+    console.log(`${expired.rows.length} ta javobsiz taklif bekor qilindi`);
+  }
+}
+
 async function sweep() {
+  await expireInvites();
+
   const tooLong = await pool.query(
     `SELECT id FROM sessions
      WHERE status = 'active'

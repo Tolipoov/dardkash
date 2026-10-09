@@ -93,6 +93,7 @@ export async function resolveInviteTelegram(sessionId: string, text: string) {
 export function inviteStatusText(status: string): string {
   if (status === "active") return "✅ <b>Qabul qilingan</b>";
   if (status === "cancelled") return "❌ <b>Rad etilgan</b>";
+  if (status === "cancelled_by_caller") return "🚫 <b>Qo'ng'iroq bekor qilindi</b>";
   if (status === "ended") return "☑️ <b>Suhbat yakunlangan</b>";
   return "⌛ <b>Taklif endi dolzarb emas</b>";
 }

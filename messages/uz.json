@@ -203,7 +203,8 @@
     "recentYouListened": "Siz tingladingiz",
     "recentYouTalked": "Siz gaplashdingiz",
     "recentMinutes": "{count} daq",
-    "recentUnderMinute": "< 1 daq"
+    "recentUnderMinute": "< 1 daq",
+    "inviteCancel": "Bekor qilish"
   },
   "session": {
     "connecting": "Ulanmoqda...",
@@ -239,7 +240,10 @@
     "feedbackThanks": "Rahmat, fikringiz uchun",
     "chat": "Yozishma",
     "leaveTitle": "Suhbatdan chiqmoqchimisiz?",
-    "leaveBody": "Chiqsangiz, suhbat tugaydi."
+    "leaveBody": "Chiqsangiz, suhbat tugaydi.",
+    "cancelCall": "Qo'ng'iroqni bekor qilish",
+    "noAnswerHint": "Hozircha javob yo'q. Yana kutishingiz yoki bekor qilishingiz mumkin.",
+    "callCancelled": "Bu taklif bekor qilingan yoki rad etilgan."
   },
   "admin": {
     "queueTitle": "Moderatsiya navbati",

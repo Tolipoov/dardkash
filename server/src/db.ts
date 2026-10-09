@@ -4,6 +4,14 @@ export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 });
 
+// Bo'sh turgan ulanish uzilsa (masalan Postgres qayta ishga tushsa) pool
+// 'error' hodisasini chiqaradi — tinglovchi bo'lmasa Node jarayonni
+// yiqitadi (production'da shunday bo'lgan). Pool keyingi so'rovda o'zi
+// yangi ulanish ochadi.
+pool.on("error", (err) => {
+  console.error("Postgres ulanishida xato:", err);
+});
+
 // Google ID bo'yicha foydalanuvchini topadi, topilmasa yangi yaratadi
 export async function findOrCreateGoogleUser(googleId: string, email: string) {
   const existing = await pool.query(

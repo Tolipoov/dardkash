@@ -217,6 +217,11 @@ export default function DashboardPage() {
           } else if (data.type === "invite_declined") {
             toast.push("Taklifingiz rad etildi", "info");
             loadInvites();
+          } else if (data.type === "call_cancelled") {
+            setIncomingCall((current) =>
+              current?.sessionId === data.sessionId ? null : current,
+            );
+            loadInvites();
           } else if (data.type === "telegram_linked") {
             toast.push(t("telegramLinked"), "success");
             setLinkingTelegram(false);
@@ -329,7 +334,22 @@ export default function DashboardPage() {
     } catch (err) {
       console.error(err);
       toast.push("Amalni bajarib bo'lmadi", "error");
+      loadInvites();
     }
+  }
+
+  async function cancelInvite(inviteId: string) {
+    try {
+      const res = await fetch(`/api/session/${inviteId}/end`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error();
+    } catch (err) {
+      console.error(err);
+      toast.push("Amalni bajarib bo'lmadi", "error");
+    }
+    loadInvites();
   }
 
   async function startSearch() {
@@ -522,13 +542,22 @@ export default function DashboardPage() {
                     <b>{inv.listener_nickname}</b> —{" "}
                     {inv.status === "active" ? "qabul qildi ✅" : "javob kutilmoqda ⏳"}
                   </span>
-                  {inv.status === "active" && (
+                  {inv.status === "active" ? (
                     <Button
                       size="md"
                       className="w-full sm:w-auto"
                       onClick={() => router.push(`/session/${inv.id}`)}
                     >
                       Suhbatni boshlash
+                    </Button>
+                  ) : (
+                    <Button
+                      size="md"
+                      variant="secondary"
+                      className="w-full sm:w-auto"
+                      onClick={() => cancelInvite(inv.id)}
+                    >
+                      {t("inviteCancel")}
                     </Button>
                   )}
                 </div>

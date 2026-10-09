@@ -57,6 +57,10 @@ export default function SessionPage() {
   const [showReport, setShowReport] = useState(false);
   const [ended, setEnded] = useState(false);
   const [needsTap, setNeedsTap] = useState(false);
+  // Shu sahifada suhbat haqiqatan bo'lib o'tdimi — suhbatni ikkinchi tomon
+  // tugatganda ham baholash oynasini ko'rsatish uchun.
+  const [wasInCall, setWasInCall] = useState(false);
+  const [noAnswer, setNoAnswer] = useState(false);
 
   // 1) Kimligimizni bilamiz
   useEffect(() => {
@@ -118,6 +122,7 @@ export default function SessionPage() {
   // 3) Video/audio — FAQAT suhbat "active" bo'lgandagina ulanamiz
   useEffect(() => {
     if (!sessionInfo || sessionInfo.status !== "active") return;
+    setWasInCall(true);
 
     // Agar oldingi marta rejalashtirilgan "suhbatni tugatish" hali
     // yuborilmagan bo'lsa (pastdagi izohga qarang), bekor qilamiz — bu
@@ -305,6 +310,29 @@ export default function SessionPage() {
     };
   }, [inCall]);
 
+  // Qo'ng'iroq qilgan tomon javobni cheksiz kutib qolmasin: bir daqiqadan
+  // keyin "javob bermayapti" eslatmasi chiqadi (bekor qilish tugmasi doim bor).
+  const scheduled = sessionInfo?.status === "scheduled";
+  useEffect(() => {
+    if (!scheduled) return;
+    setNoAnswer(false);
+    const timer = setTimeout(() => setNoAnswer(true), 60000);
+    return () => clearTimeout(timer);
+  }, [scheduled]);
+
+  async function cancelCall() {
+    setResponding(true);
+    try {
+      await fetch(`/api/session/${sessionId}/end`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (err) {
+      console.error("Qo'ng'iroqni bekor qilishda xato:", err);
+    }
+    router.push("/dashboard");
+  }
+
   async function confirmEnd() {
     await roomRef.current?.disconnect();
     setConfirmMode(null);
@@ -334,10 +362,17 @@ export default function SessionPage() {
     );
   }
 
+  // Bu tekshiruv pastdagi "allaqachon tugagan" ekranidan OLDIN turishi
+  // shart: avval 3 soniyalik poll suhbat `ended` bo'lganini ko'rishi bilan
+  // baholash oynasi o'sha ekran bilan almashib, yo'qolib qolardi.
+  if (ended || (wasInCall && sessionInfo.status === "ended")) {
+    return <FeedbackModal sessionId={sessionId} onSubmit={() => router.push("/dashboard")} />;
+  }
+
   if (sessionInfo.status === "cancelled") {
     return (
       <section className="flex min-h-screen flex-col items-center justify-center gap-4 bg-tun text-center px-6">
-        <p className="text-sahar/70">Bu taklif rad etilgan.</p>
+        <p className="text-sahar/70">{t("callCancelled")}</p>
         <Button onClick={() => router.push("/dashboard")}>Bosh sahifaga qaytish</Button>
       </section>
     );
@@ -350,10 +385,6 @@ export default function SessionPage() {
         <Button onClick={() => router.push("/dashboard")}>Bosh sahifaga qaytish</Button>
       </section>
     );
-  }
-
-  if (ended) {
-    return <FeedbackModal sessionId={sessionId} onSubmit={() => router.push("/dashboard")} />;
   }
 
   const isListenerSide = myUserId === sessionInfo.listener_id;
@@ -383,7 +414,14 @@ export default function SessionPage() {
             <p className="text-lg text-sahar">
               <b>{otherName}</b>ga qo&apos;ng&apos;iroq qilinmoqda...
             </p>
-            <p className="text-sm text-sahar/50">Kutilmoqda, javob berilishi bilan avtomatik boshlanadi</p>
+            <p className="text-sm text-sahar/50">
+              {noAnswer
+                ? t("noAnswerHint")
+                : "Kutilmoqda, javob berilishi bilan avtomatik boshlanadi"}
+            </p>
+            <Button variant="ghost" disabled={responding} onClick={cancelCall}>
+              {t("cancelCall")}
+            </Button>
           </>
         )}
 

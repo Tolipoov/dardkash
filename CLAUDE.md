@@ -582,3 +582,22 @@ sinaganda topiladigan" xatolarga misol.
     o'chirilgan foydalanuvchi cookie'sini 401 bilan rad etadi (avval FK
     xatosi bilan 500).
 
+
+### 10-guruh — To'rtinchi tur (2026-10-09)
+
+45. **[✅ TUZATILDI] Baholash oynasi 3 soniyada yo'qolardi** — suhbat sahifasida
+    `status === "ended"` ekrani `ended` (FeedbackModal) tekshiruvidan oldin
+    turardi, poll esa to'xtamasdi. Suhbatni ikkinchi tomon tugatsa, oyna umuman
+    chiqmasdi (17 suhbatga 3 ta baho). Endi FeedbackModal birinchi tekshiriladi
+    va `wasInCall` orqali ikkala tomonga ham chiqadi.
+46. **[✅ TUZATILDI] API Postgres uzilganda yiqilardi** — `pool.on("error")` yo'q
+    edi; `/api/me`, `requireRole` va Telegram webhook `try/catch`siz edi (Express 4
+    async xatoni ushlamaydi). Qo'shildi: pool tinglovchisi, umumiy xato
+    middleware'i, `unhandledRejection`. **Qoida: yangi async route — doim try/catch.**
+47. **[✅ TUZATILDI] Javobsiz qo'ng'iroq abadiy `scheduled` qolardi.**
+    `/api/session/:id/end` endi `scheduled` suhbatni `cancelled` qiladi va
+    ikkinchi tomonga `call_cancelled` yuboradi (modal yopiladi, Telegram xabari
+    yangilanadi). Kutish ekranida va "Yuborgan takliflar"da bekor qilish tugmasi.
+    Sweeper 24 soatdan eski takliflarni bekor qiladi.
+48. **[✅ TUZATILDI]** Admin'ga ariza xabarida nickname/bio/telefon va rad etish
+    sababi `escapeHtml`siz edi — `<`/`&` bo'lsa Telegram xabarni rad etardi.

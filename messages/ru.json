@@ -203,7 +203,8 @@
     "recentYouListened": "Вы слушали",
     "recentYouTalked": "Вы делились",
     "recentMinutes": "{count} мин",
-    "recentUnderMinute": "< 1 мин"
+    "recentUnderMinute": "< 1 мин",
+    "inviteCancel": "Отменить"
   },
   "session": {
     "connecting": "Подключение...",
@@ -239,7 +240,10 @@
     "feedbackThanks": "Спасибо за отзыв",
     "chat": "Чат",
     "leaveTitle": "Выйти из разговора?",
-    "leaveBody": "Если выйти, разговор завершится."
+    "leaveBody": "Если выйти, разговор завершится.",
+    "cancelCall": "Отменить звонок",
+    "noAnswerHint": "Пока нет ответа. Можно подождать ещё или отменить.",
+    "callCancelled": "Это приглашение отменено или отклонено."
   },
   "admin": {
     "queueTitle": "Очередь модерации",

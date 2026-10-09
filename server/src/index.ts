@@ -203,15 +203,22 @@ app.post("/api/auth/logout", (_req, res) => {
 });
 
 app.get("/api/me", requireAuth, async (req, res) => {
-  const result = await pool.query(
-    `SELECT u.id, u.email, u.telegram_id, p.nickname, p.role, p.phone, p.wants, lp.status AS listener_status
-     FROM users u
-     LEFT JOIN profiles p ON p.user_id = u.id
-     LEFT JOIN listener_profiles lp ON lp.user_id = u.id
-     WHERE u.id = $1`,
-    [req.userId],
-  );
-  res.json({ status: "ok", user: result.rows[0] });
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.email, u.telegram_id, p.nickname, p.role, p.phone, p.wants, lp.status AS listener_status
+       FROM users u
+       LEFT JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN listener_profiles lp ON lp.user_id = u.id
+       WHERE u.id = $1`,
+      [req.userId],
+    );
+    res.json({ status: "ok", user: result.rows[0] });
+  } catch (err) {
+    console.error("Foydalanuvchini olishda xato:", err);
+    res
+      .status(500)
+      .json({ status: "error", message: "Ma'lumotni olib bo'lmadi" });
+  }
 });
 
 app.get(
@@ -393,7 +400,7 @@ app.post("/api/profile", requireAuth, async (req, res) => {
       const topicsText = topics.join(", ");
       await sendTelegramMessage(
         process.env.ADMIN_TELEGRAM_CHAT_ID,
-        `🆕 <b>Yangi dardkash arizasi</b>\n\n👤 Ism: ${nickname.trim()}\n📞 Tel: ${phone || "—"}\n📝 Bio: ${bio}\n🏷 Mavzular: ${topicsText}`,
+        `🆕 <b>Yangi dardkash arizasi</b>\n\n👤 Ism: ${escapeHtml(nickname.trim())}\n📞 Tel: ${escapeHtml(String(phone || "—"))}\n📝 Bio: ${escapeHtml(bio)}\n🏷 Mavzular: ${escapeHtml(topicsText)}`,
         [
           [
             { text: "✅ Tasdiqlash", callback_data: `approve:${req.userId}` },
@@ -548,7 +555,7 @@ app.post(
       if (telegramId) {
         await sendTelegramMessage(
           telegramId,
-          `Afsuski, dardkash sifatidagi arizangiz hozircha tasdiqlanmadi.${reason ? `\n\nSabab: ${reason}` : ""}\n\nQaytadan urinib ko'rishingiz mumkin: https://dardkash.uz/onboarding`,
+          `Afsuski, dardkash sifatidagi arizangiz hozircha tasdiqlanmadi.${reason ? `\n\nSabab: ${escapeHtml(String(reason))}` : ""}\n\nQaytadan urinib ko'rishingiz mumkin: https://dardkash.uz/onboarding`,
         );
       }
 
@@ -985,16 +992,32 @@ app.post("/api/session/match", requireAuth, callLimiter, async (req, res) => {
 app.post("/api/session/:sessionId/end", requireAuth, async (req, res) => {
   try {
     const { sessionId } = req.params;
+    // Hali qabul qilinmagan (scheduled) suhbat "tugamaydi", bekor bo'ladi —
+    // avval u 'ended' bo'lib, dardkashdagi qo'ng'iroq modali ochiq qolardi.
     const result = await pool.query(
-      `UPDATE sessions SET status = 'ended', ended_at = now()
-       WHERE id = $1 AND (speaker_id = $2 OR listener_id = $2) AND status != 'ended'
-       RETURNING listener_id`,
+      `UPDATE sessions SET
+         status = CASE WHEN status = 'scheduled'
+                       THEN 'cancelled'::session_status
+                       ELSE 'ended'::session_status END,
+         ended_at = now()
+       WHERE id = $1 AND (speaker_id = $2 OR listener_id = $2)
+         AND status IN ('scheduled', 'active')
+       RETURNING speaker_id, listener_id, status`,
       [sessionId, req.userId],
     );
     if (result.rows.length === 0) {
       return res
         .status(403)
         .json({ status: "error", message: "Bu suhbatga aloqangiz yo'q" });
+    }
+    if (result.rows[0].status === "cancelled") {
+      const { speaker_id, listener_id } = result.rows[0];
+      notifyUser(req.userId === speaker_id ? listener_id : speaker_id, {
+        type: "call_cancelled",
+        sessionId,
+      });
+      await resolveInviteTelegram(sessionId, inviteStatusText("cancelled_by_caller"));
+      return res.json({ status: "ok" });
     }
     // sessions_count (matching'dagi yuk taqsimoti mezoni) shu yerda yangilanadi.
     await pool.query("SELECT refresh_listener_stats($1)", [
@@ -1231,7 +1254,19 @@ async function linkTelegramAccount(
   notifyUser(userId, { type: "telegram_linked" });
 }
 
+// Express 4 async handler ichidagi xatoni o'zi ushlamaydi — bu yerdagi
+// har qanday DB/Telegram xatosi butun jarayonni yiqitardi. Xato bo'lsa ham
+// 200 qaytaramiz: aks holda Telegram o'sha update'ni qayta-qayta yuboradi.
 app.post("/api/telegram/webhook", async (req, res) => {
+  try {
+    await handleTelegramWebhook(req, res);
+  } catch (err) {
+    console.error("Telegram webhook xatosi:", err);
+    if (!res.headersSent) res.sendStatus(200);
+  }
+});
+
+async function handleTelegramWebhook(req: express.Request, res: express.Response) {
   const secret = req.header("X-Telegram-Bot-Api-Secret-Token");
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
   if (!expectedSecret || secret !== expectedSecret) {
@@ -1424,6 +1459,22 @@ app.post("/api/telegram/webhook", async (req, res) => {
   }
 
   return res.sendStatus(200);
+}
+
+// requireAuth kabi middleware'lar `next(err)` bilan uzatgan xatolar uchun —
+// busiz Express HTML sahifa qaytarardi.
+app.use(
+  (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error("Kutilmagan xato:", err);
+    if (res.headersSent) return;
+    res.status(500).json({ status: "error", message: "Serverda xato yuz berdi" });
+  },
+);
+
+// So'nggi himoya: biror joyda ushlanmagan promise xatosi qolsa, Node 20
+// standart holatda jarayonni to'xtatadi va barcha WebSocket'lar uziladi.
+process.on("unhandledRejection", (err) => {
+  console.error("Ushlanmagan promise xatosi:", err);
 });
 
 const PORT = process.env.PORT || 4000;
