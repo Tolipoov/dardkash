@@ -32,7 +32,7 @@ export default function ReportModal({
       setSent(true);
     } catch (err) {
       console.error("Shikoyatni yuborishda xato:", err);
-      toast.push("Shikoyatni yuborib bo'lmadi, qayta urinib ko'ring", "error");
+      toast.push(t("reportError"), "error");
     } finally {
       setSending(false);
     }

@@ -77,7 +77,7 @@ export default function ModerationPage() {
         return;
       }
       if (res.status === 403) {
-        toast.push("Sizda bu sahifaga kirish huquqi yo'q", "error");
+        toast.push(t("noAccess"), "error");
         router.push("/dashboard");
         return;
       }
@@ -86,11 +86,11 @@ export default function ModerationPage() {
       await loadReports();
     } catch (err) {
       console.error(err);
-      toast.push("Ro'yxatni yuklashda xato", "error");
+      toast.push(t("loadError"), "error");
     } finally {
       setLoading(false);
     }
-  }, [router, toast, loadReports]);
+  }, [router, toast, loadReports, t]);
 
   useEffect(() => {
     load();
@@ -104,9 +104,9 @@ export default function ModerationPage() {
       });
       if (!res.ok) throw new Error();
       setQueue((q) => q.filter((item) => item.user_id !== userId));
-      toast.push("Tasdiqlandi", "success");
+      toast.push(t("approved"), "success");
     } catch {
-      toast.push("Tasdiqlashda xato yuz berdi", "error");
+      toast.push(t("actionError"), "error");
     }
   }
 
@@ -122,9 +122,9 @@ export default function ModerationPage() {
       setQueue((q) => q.filter((item) => item.user_id !== userId));
       setRejectingId(null);
       setReason("");
-      toast.push("Rad etildi", "success");
+      toast.push(t("rejected"), "success");
     } catch {
-      toast.push("Rad etishda xato yuz berdi", "error");
+      toast.push(t("actionError"), "error");
     }
   }
 

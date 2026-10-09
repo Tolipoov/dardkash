@@ -170,12 +170,12 @@ export default function OnboardingForm() {
       });
       if (!res.ok) throw new Error("Saqlashda xato");
       if (isEditMode && listenerStatus === "approved") {
-        toast.push("Profil yangilandi", "success");
+        toast.push(t("profileUpdated"), "success");
       }
       setSubmitted(true);
     } catch (err) {
       console.error(err);
-      toast.push("Xatolik yuz berdi, qayta urinib ko'ring", "error");
+      toast.push(t("saveError"), "error");
     }
   }
 

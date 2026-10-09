@@ -1,9 +1,10 @@
+import CallNotifier from "@/components/call/CallNotifier";
 import SiteFooter from "@/components/landing/SiteFooter";
 import SiteHeader from "@/components/landing/SiteHeader";
 import { ToastProvider } from "@/components/ui/Toast";
 import { locales } from "@/i18n/config";
 import { NextIntlClientProvider } from "next-intl";
-import { getMessages, setRequestLocale } from "next-intl/server";
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { Manrope, PT_Serif } from "next/font/google";
 import type { ReactNode } from "react";
 import "../globals.css";
@@ -25,11 +26,14 @@ export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
 }
 
-export const metadata = {
-  title: "Dardkash — sizni tinglashga tayyor odam bor",
-  description:
-    "Dardkash sizni hukm qilmasdan tinglaydigan odam bilan video, audio yoki yozishma orqali bog'laydi.",
-};
+export async function generateMetadata({
+  params: { locale },
+}: {
+  params: { locale: string };
+}) {
+  const t = await getTranslations({ locale, namespace: "meta" });
+  return { title: t("title"), description: t("description") };
+}
 
 export default async function LocaleLayout({
   children,
@@ -49,6 +53,7 @@ export default async function LocaleLayout({
             <SiteHeader />
             <main>{children}</main>
             <SiteFooter />
+            <CallNotifier />
           </ToastProvider>
         </NextIntlClientProvider>
       </body>

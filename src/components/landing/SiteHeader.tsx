@@ -6,6 +6,7 @@ import { locales, type Locale } from "@/i18n/config";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import Button from "@/components/ui/Button";
 import { authHrefFor } from "@/components/landing/useLandingCta";
+import { AUTH_CHANGED_EVENT } from "@/components/call/CallNotifier";
 
 interface Me {
   nickname: string | null;
@@ -35,6 +36,7 @@ export default function SiteHeader() {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
     setMe(null);
     setMenuOpen(false);
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
     router.push("/");
     router.refresh();
   }
@@ -101,7 +103,7 @@ export default function SiteHeader() {
                   {initial}
                 </span>
                 <span className="max-w-[120px] truncate text-sm text-kul">
-                  {me.nickname || "Profil"}
+                  {me.nickname || t("profile")}
                 </span>
               </button>
 

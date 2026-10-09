@@ -608,5 +608,15 @@ sinaganda topiladigan" xatolarga misol.
     `requireAuth` 401 `code: "banned"` qaytaradi, qayta login `/auth?blocked=1`ga
     tushadi, dardkash ro'yxat/matching'dan chiqadi, ochiq suhbatlari yopiladi.
     Admin/moderatorni bloklab bo'lmaydi. ReportModal'ga izoh maydoni qo'shildi.
-    `crisisNote` endi bo'sh emas (103). **Qolgan:** maxsus ishonch telefoni
-    raqami, bloklangan odamni LiveKit xonasidan darhol chiqarish.
+    **Qolgan:** bloklangan odamni LiveKit xonasidan darhol chiqarish.
+    (Kriziz/ishonch telefoni eslatmasi foydalanuvchi qarori bilan qo'shilmaydi —
+    `session.crisisNote` ataylab bo'sh.)
+50. **[✅ O'ZGARDI] Qo'ng'iroq bildirishnomasi butun saytda.** `/api/ws/notify`
+    socket'i, qo'ng'iroq modali (endi ovoz bilan) va dardkashning "onlayn"
+    heartbeat'i dashboard'dan `src/components/call/CallNotifier.tsx`ga
+    (layout) ko'chdi — avval dardkash boshqa sahifada bo'lsa oflayn ko'rinardi.
+    Sahifalar socket'ga o'zi ulanmaydi: `NOTIFY_EVENT` window hodisasini
+    tinglaydi. Suhbat sahifasida modal chiqmaydi va heartbeat to'xtaydi.
+    Barcha qattiq yozilgan o'zbekcha UI matnlari `messages/*.json`ga o'tdi,
+    sahifa title/description endi tilga qarab (`meta` namespace).
+    **Qoida: UI matni faqat `t()` orqali.**

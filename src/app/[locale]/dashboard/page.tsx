@@ -6,9 +6,11 @@ import ListenerCard, {
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { useRouter } from "@/i18n/navigation";
-import { buildWsUrl } from "@/lib/ws";
+import { NOTIFY_EVENT } from "@/components/call/CallNotifier";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+
+const bold = (chunks: ReactNode) => <b>{chunks}</b>;
 
 interface Me {
   nickname: string | null;
@@ -51,11 +53,6 @@ export default function DashboardPage() {
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
-  const [incomingCall, setIncomingCall] = useState<{
-    sessionId: string;
-    speakerName: string;
-  } | null>(null);
-
   const [linkingTelegram, setLinkingTelegram] = useState(false);
 
   const reloadMe = useCallback(async () => {
@@ -131,7 +128,7 @@ export default function DashboardPage() {
         await Promise.all([loadListeners(), loadInvites(), loadRecentSessions()]);
       } catch (err) {
         console.error(err);
-        toast.push("Ma'lumotlarni yuklashda xato", "error");
+        toast.push(t("loadError"), "error");
       } finally {
         setLoading(false);
       }
@@ -154,99 +151,23 @@ export default function DashboardPage() {
     };
   }, [loadListeners]);
 
-  const isApprovedListener = me?.listener_status === "approved";
+  // Bildirishnoma socket'i, qo'ng'iroq modali va "onlayn" holati endi
+  // butun sayt uchun CallNotifier'da (layout). Bu sahifa faqat hodisaga
+  // javoban o'z ro'yxatlarini yangilaydi.
   useEffect(() => {
-    if (!isApprovedListener) return;
-
-    function setPresence(online: boolean) {
-      navigator.sendBeacon(
-        "/api/listeners/presence",
-        new Blob([JSON.stringify({ online })], { type: "application/json" }),
-      );
+    function onNotify(event: Event) {
+      const type = (event as CustomEvent).detail?.type;
+      if (type === "telegram_linked") {
+        toast.push(t("telegramLinked"), "success");
+        setLinkingTelegram(false);
+        reloadMe();
+      } else {
+        loadInvites();
+      }
     }
-
-    fetch("/api/listeners/presence", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ online: true }),
-    }).catch(() => {});
-
-    const heartbeat = setInterval(() => {
-      fetch("/api/listeners/presence", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ online: true }),
-      }).catch(() => {});
-    }, 30000);
-
-    const goOffline = () => setPresence(false);
-    window.addEventListener("beforeunload", goOffline);
-    return () => {
-      clearInterval(heartbeat);
-      goOffline();
-      window.removeEventListener("beforeunload", goOffline);
-    };
-  }, [isApprovedListener]);
-
-  // Real vaqtli "qo'ng'iroq" — backend (POST /api/session/start,
-  // POST /api/invites) allaqachon /api/ws/notify orqali incoming_call /
-  // new_invite hodisasini yuborardi, lekin dashboard bu socket'ni HECH
-  // QACHON tinglamas edi — natijada dardkash sahifani qo'lda yangilamas
-  // ekan, unga "qo'ng'iroq qilinganini" bilishning iloji yo'q edi. Endi
-  // shu yerda ulanamiz va hodisa kelganda darhol ekranda ko'rsatamiz.
-  useEffect(() => {
-    let cancelled = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let socket: WebSocket | null = null;
-
-    function connect() {
-      if (cancelled) return;
-      socket = new WebSocket(buildWsUrl("/api/ws/notify"));
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === "incoming_call" || data.type === "new_invite") {
-            setIncomingCall({ sessionId: data.sessionId, speakerName: data.speakerName });
-            loadInvites();
-          } else if (data.type === "invite_accepted") {
-            toast.push("Taklifingiz qabul qilindi", "success");
-            loadInvites();
-          } else if (data.type === "invite_declined") {
-            toast.push("Taklifingiz rad etildi", "info");
-            loadInvites();
-          } else if (data.type === "call_cancelled") {
-            setIncomingCall((current) =>
-              current?.sessionId === data.sessionId ? null : current,
-            );
-            loadInvites();
-          } else if (data.type === "telegram_linked") {
-            toast.push(t("telegramLinked"), "success");
-            setLinkingTelegram(false);
-            reloadMe();
-          }
-        } catch (err) {
-          console.error("Bildirishnoma xabarini o'qishda xato:", err);
-        }
-      };
-
-      socket.onclose = () => {
-        if (cancelled) return;
-        reconnectTimer = setTimeout(connect, 2000);
-      };
-    }
-
-    connect();
-
-    return () => {
-      cancelled = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      socket?.close();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    window.addEventListener(NOTIFY_EVENT, onNotify);
+    return () => window.removeEventListener(NOTIFY_EVENT, onNotify);
+  }, [loadInvites, reloadMe, toast, t]);
 
   // Telegram ulanmagan dardkash offlayn paytida kelgan qo'ng'iroqlarni
   // bilmay qoladi — bot orqali bir martalik havola bilan ulaymiz. Oynani
@@ -290,11 +211,11 @@ export default function DashboardPage() {
         body: JSON.stringify({ listenerId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Suhbat boshlab bo'lmadi");
+      if (!res.ok) throw new Error(data.message);
       router.push(`/session/${data.sessionId}`);
     } catch (err) {
       console.error(err);
-      toast.push("Suhbat boshlab bo'lmadi, qayta urinib ko'ring", "error");
+      toast.push(t("startError"), "error");
       setSearching(false);
     }
   }
@@ -308,17 +229,16 @@ export default function DashboardPage() {
         body: JSON.stringify({ listenerId }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Taklif yuborilmadi");
-      toast.push("Taklif yuborildi", "success");
+      if (!res.ok) throw new Error(data.message);
+      toast.push(t("inviteSent"), "success");
       loadInvites();
     } catch (err) {
       console.error(err);
-      toast.push("Taklif yuborishda xato yuz berdi", "error");
+      toast.push(t("inviteError"), "error");
     }
   }
 
   async function respondToInvite(inviteId: string, accept: boolean) {
-    setIncomingCall((current) => (current?.sessionId === inviteId ? null : current));
     try {
       const res = await fetch(`/api/invites/${inviteId}/${accept ? "accept" : "decline"}`, {
         method: "POST",
@@ -328,12 +248,12 @@ export default function DashboardPage() {
       if (accept) {
         router.push(`/session/${inviteId}`);
       } else {
-        toast.push("Taklif rad etildi", "info");
+        toast.push(t("inviteDeclinedByYou"), "info");
         loadInvites();
       }
     } catch (err) {
       console.error(err);
-      toast.push("Amalni bajarib bo'lmadi", "error");
+      toast.push(t("actionError"), "error");
       loadInvites();
     }
   }
@@ -347,7 +267,7 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error();
     } catch (err) {
       console.error(err);
-      toast.push("Amalni bajarib bo'lmadi", "error");
+      toast.push(t("actionError"), "error");
     }
     loadInvites();
   }
@@ -361,16 +281,13 @@ export default function DashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.push(
-          data.message || "Hozircha mos dardkash yo'q, birozdan keyin qayta urinib ko'ring",
-          "info",
-        );
+        toast.push(t(res.status === 404 ? "noMatch" : "matchError"), "info");
         return;
       }
       router.push(`/session/${data.sessionId}`);
     } catch (err) {
       console.error(err);
-      toast.push("Mos dardkash qidirishda xato yuz berdi", "error");
+      toast.push(t("matchError"), "error");
     } finally {
       setSearching(false);
     }
@@ -399,37 +316,6 @@ export default function DashboardPage() {
 
   return (
     <section className="bg-sahar px-6 py-14">
-      {incomingCall && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-tun-deep/70 px-6">
-          <div className="w-full max-w-sm rounded-wave bg-sahar p-7 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-barg/15 text-3xl animate-pulseSoft">
-              📞
-            </div>
-            <h2 className="mt-4 font-display text-lg text-kul">
-              {t("incomingCallTitle")}
-            </h2>
-            <p className="mt-2 text-sm text-kul/60">
-              {t("incomingCallBody", { name: incomingCall.speakerName })}
-            </p>
-            <div className="mt-6 flex gap-3">
-              <Button
-                variant="ghost"
-                className="flex-1"
-                onClick={() => respondToInvite(incomingCall.sessionId, false)}
-              >
-                {t("incomingCallDecline")}
-              </Button>
-              <Button
-                className="flex-1"
-                onClick={() => respondToInvite(incomingCall.sessionId, true)}
-              >
-                {t("incomingCallAccept")}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
@@ -467,7 +353,7 @@ export default function DashboardPage() {
 
         {incomingInvites.some((inv) => inv.status === "scheduled") && (
           <>
-            <h2 className="mt-12 font-display text-xl text-kul">Sizga kelgan takliflar</h2>
+            <h2 className="mt-12 font-display text-xl text-kul">{t("incomingInvitesTitle")}</h2>
             <div className="mt-5 space-y-3">
               {incomingInvites
                 .filter((inv) => inv.status === "scheduled")
@@ -477,7 +363,7 @@ export default function DashboardPage() {
                     className="flex flex-col gap-3 rounded-2xl border border-yulduz/30 bg-yulduz/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <span className="text-sm text-kul">
-                      <b>{inv.speaker_nickname}</b> siz bilan suhbatlashishni xohlaydi
+                      {t.rich("wantsToTalk", { name: inv.speaker_nickname, b: bold })}
                     </span>
                     <div className="flex gap-2">
                       <Button
@@ -485,7 +371,7 @@ export default function DashboardPage() {
                         className="flex-1 sm:flex-none"
                         onClick={() => respondToInvite(inv.id, true)}
                       >
-                        Qabul qilish
+                        {t("incomingCallAccept")}
                       </Button>
                       <Button
                         size="md"
@@ -493,7 +379,7 @@ export default function DashboardPage() {
                         className="flex-1 sm:flex-none"
                         onClick={() => respondToInvite(inv.id, false)}
                       >
-                        Rad etish
+                        {t("incomingCallDecline")}
                       </Button>
                     </div>
                   </div>
@@ -504,7 +390,7 @@ export default function DashboardPage() {
 
         {incomingInvites.some((inv) => inv.status === "active") && (
           <>
-            <h2 className="mt-12 font-display text-xl text-kul">Faol suhbatlaringiz</h2>
+            <h2 className="mt-12 font-display text-xl text-kul">{t("activeSessionsTitle")}</h2>
             <div className="mt-5 space-y-3">
               {incomingInvites
                 .filter((inv) => inv.status === "active")
@@ -514,14 +400,14 @@ export default function DashboardPage() {
                     className="flex flex-col gap-3 rounded-2xl border border-barg/30 bg-barg/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
                   >
                     <span className="text-sm text-kul">
-                      <b>{inv.speaker_nickname}</b> bilan suhbat boshlangan
+                      {t.rich("sessionStartedWith", { name: inv.speaker_nickname, b: bold })}
                     </span>
                     <Button
                       size="md"
                       className="w-full sm:w-auto"
                       onClick={() => router.push(`/session/${inv.id}`)}
                     >
-                      Suhbatni boshlash
+                      {t("joinSession")}
                     </Button>
                   </div>
                 ))}
@@ -531,7 +417,7 @@ export default function DashboardPage() {
 
         {sentInvites.length > 0 && (
           <>
-            <h2 className="mt-12 font-display text-xl text-kul">Yuborgan takliflaringiz</h2>
+            <h2 className="mt-12 font-display text-xl text-kul">{t("sentInvitesTitle")}</h2>
             <div className="mt-5 space-y-3">
               {sentInvites.map((inv) => (
                 <div
@@ -539,8 +425,10 @@ export default function DashboardPage() {
                   className="flex flex-col gap-3 rounded-2xl border border-kul/10 bg-white/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <span className="text-sm text-kul">
-                    <b>{inv.listener_nickname}</b> —{" "}
-                    {inv.status === "active" ? "qabul qildi ✅" : "javob kutilmoqda ⏳"}
+                    {t.rich(inv.status === "active" ? "sentAccepted" : "sentWaiting", {
+                      name: inv.listener_nickname,
+                      b: bold,
+                    })}
                   </span>
                   {inv.status === "active" ? (
                     <Button
@@ -548,7 +436,7 @@ export default function DashboardPage() {
                       className="w-full sm:w-auto"
                       onClick={() => router.push(`/session/${inv.id}`)}
                     >
-                      Suhbatni boshlash
+                      {t("joinSession")}
                     </Button>
                   ) : (
                     <Button

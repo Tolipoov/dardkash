@@ -17,7 +17,9 @@ import {
 } from "livekit-client";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+
+const bold = (chunks: ReactNode) => <b>{chunks}</b>;
 
 interface SessionInfo {
   id: string;
@@ -113,7 +115,7 @@ export default function SessionPage() {
       const infoData = await infoRes.json();
       setSessionInfo(infoData.session);
     } catch {
-      toast.push("Amalni bajarib bo'lmadi", "error");
+      toast.push(t("actionError"), "error");
     } finally {
       setResponding(false);
     }
@@ -183,7 +185,7 @@ export default function SessionPage() {
         } catch (camErr) {
           console.warn("Kamera topilmadi:", camErr);
           setCameraOn(false);
-          toast.push("Kamera topilmadi — faqat audio bilan davom etyapsiz", "info");
+          toast.push(t("noCamera"), "info");
         }
 
         try {
@@ -191,13 +193,13 @@ export default function SessionPage() {
         } catch (micErr) {
           console.warn("Mikrofon topilmadi:", micErr);
           setMicOn(false);
-          toast.push("Mikrofon topilmadi", "info");
+          toast.push(t("noMic"), "info");
         }
 
         setConnecting(false);
       } catch (err) {
         console.error("LiveKit ulanish xatosi:", err);
-        toast.push("Suhbatga ulanib bo'lmadi", "error");
+        toast.push(t("connectError"), "error");
         setConnecting(false);
       }
     }
@@ -255,7 +257,7 @@ export default function SessionPage() {
     } catch (err) {
       console.warn("Kamerani almashtirib bo'lmadi:", err);
       setCameraOn(!next);
-      toast.push("Kamerani yoqib bo'lmadi", "error");
+      toast.push(t("cameraError"), "error");
     }
   }
 
@@ -267,7 +269,7 @@ export default function SessionPage() {
     } catch (err) {
       console.warn("Mikrofonni almashtirib bo'lmadi:", err);
       setMicOn(!next);
-      toast.push("Mikrofonni yoqib bo'lmadi", "error");
+      toast.push(t("micError"), "error");
     }
   }
 
@@ -348,7 +350,7 @@ export default function SessionPage() {
   if (loadingInfo) {
     return (
       <section className="flex min-h-screen items-center justify-center bg-tun">
-        <p className="text-sahar/50">Yuklanmoqda...</p>
+        <p className="text-sahar/50">{t("loading")}</p>
       </section>
     );
   }
@@ -356,8 +358,8 @@ export default function SessionPage() {
   if (!sessionInfo) {
     return (
       <section className="flex min-h-screen flex-col items-center justify-center gap-4 bg-tun text-center">
-        <p className="text-sahar/70">Bu suhbat topilmadi yoki sizga tegishli emas.</p>
-        <Button onClick={() => router.push("/dashboard")}>Bosh sahifaga qaytish</Button>
+        <p className="text-sahar/70">{t("notFound")}</p>
+        <Button onClick={() => router.push("/dashboard")}>{t("backToDashboard")}</Button>
       </section>
     );
   }
@@ -373,7 +375,7 @@ export default function SessionPage() {
     return (
       <section className="flex min-h-screen flex-col items-center justify-center gap-4 bg-tun text-center px-6">
         <p className="text-sahar/70">{t("callCancelled")}</p>
-        <Button onClick={() => router.push("/dashboard")}>Bosh sahifaga qaytish</Button>
+        <Button onClick={() => router.push("/dashboard")}>{t("backToDashboard")}</Button>
       </section>
     );
   }
@@ -381,8 +383,8 @@ export default function SessionPage() {
   if (sessionInfo.status === "ended") {
     return (
       <section className="flex min-h-screen flex-col items-center justify-center gap-4 bg-tun text-center px-6">
-        <p className="text-sahar/70">Bu suhbat allaqachon tugagan.</p>
-        <Button onClick={() => router.push("/dashboard")}>Bosh sahifaga qaytish</Button>
+        <p className="text-sahar/70">{t("alreadyEnded")}</p>
+        <Button onClick={() => router.push("/dashboard")}>{t("backToDashboard")}</Button>
       </section>
     );
   }
@@ -398,26 +400,26 @@ export default function SessionPage() {
         {isListenerSide ? (
           <>
             <p className="text-lg text-sahar">
-              <b>{otherName}</b> siz bilan suhbatlashishni xohlaydi
+              {t.rich("wantsToTalk", { name: otherName, b: bold })}
             </p>
             <div className="flex gap-3">
               <Button disabled={responding} onClick={() => respond(true)}>
-                Qabul qilish
+                {t("accept")}
               </Button>
               <Button variant="ghost" disabled={responding} onClick={() => respond(false)}>
-                Rad etish
+                {t("decline")}
               </Button>
             </div>
           </>
         ) : (
           <>
             <p className="text-lg text-sahar">
-              <b>{otherName}</b>ga qo&apos;ng&apos;iroq qilinmoqda...
+              {t.rich("calling", { name: otherName, b: bold })}
             </p>
             <p className="text-sm text-sahar/50">
               {noAnswer
                 ? t("noAnswerHint")
-                : "Kutilmoqda, javob berilishi bilan avtomatik boshlanadi"}
+                : t("waitingAnswer")}
             </p>
             <Button variant="ghost" disabled={responding} onClick={cancelCall}>
               {t("cancelCall")}
@@ -562,7 +564,7 @@ export default function SessionPage() {
           className="fixed inset-0 z-[75] flex items-center justify-center bg-tun-deep/80 text-sahar"
         >
           <span className="rounded-full bg-yulduz px-6 py-3 font-sans font-semibold text-tun-deep">
-            Ovoz va videoni yoqish uchun bosing
+            {t("tapToPlay")}
           </span>
         </button>
       )}

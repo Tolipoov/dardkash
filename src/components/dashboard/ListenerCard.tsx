@@ -43,7 +43,7 @@ export default function ListenerCard({
         </div>
 
         <p className="mt-1 text-xs text-kul/40">
-          {listener.online ? "Hozir onlayn" : "Hozir oflayn"}
+          {listener.online ? t("online") : t("offline")}
         </p>
 
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -66,7 +66,7 @@ export default function ListenerCard({
           variant="secondary"
           onClick={() => onInvite(listener.id)}
         >
-          Taklif yuborish
+          {t("sendInvite")}
         </Button>
       )}
     </div>

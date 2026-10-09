@@ -6,7 +6,8 @@
     "dashboard": "Shaxsiy kabinet",
     "editProfile": "Profilni tahrirlash",
     "moderation": "Moderatsiya",
-    "logout": "Chiqish"
+    "logout": "Chiqish",
+    "profile": "Profil"
   },
   "landing": {
     "eyebrow": "Kimdir sizni tinglashga tayyor",
@@ -158,7 +159,9 @@
     "next": "Keyingisi",
     "finish": "Yakunlash",
     "pendingTitle": "Ma'lumotlaringiz ko'rib chiqilmoqda",
-    "pendingBody": "Dardkash sifatida profilingiz moderatordan o'tishi kerak. Bu odatda bir necha soat ichida yakunlanadi."
+    "pendingBody": "Dardkash sifatida profilingiz moderatordan o'tishi kerak. Bu odatda bir necha soat ichida yakunlanadi.",
+    "profileUpdated": "Profil yangilandi",
+    "saveError": "Xatolik yuz berdi, qayta urinib ko'ring"
   },
   "topics": {
     "family": "Oila",
@@ -205,7 +208,28 @@
     "recentYouTalked": "Siz gaplashdingiz",
     "recentMinutes": "{count} daq",
     "recentUnderMinute": "< 1 daq",
-    "inviteCancel": "Bekor qilish"
+    "inviteCancel": "Bekor qilish",
+    "loadError": "Ma'lumotlarni yuklashda xato",
+    "inviteAccepted": "Taklifingiz qabul qilindi",
+    "inviteDeclined": "Taklifingiz rad etildi",
+    "startError": "Suhbat boshlab bo'lmadi, qayta urinib ko'ring",
+    "inviteSent": "Taklif yuborildi",
+    "inviteError": "Taklif yuborishda xato yuz berdi",
+    "inviteDeclinedByYou": "Taklif rad etildi",
+    "actionError": "Amalni bajarib bo'lmadi",
+    "noMatch": "Hozircha mos dardkash yo'q, birozdan keyin qayta urinib ko'ring",
+    "matchError": "Mos dardkash qidirishda xato yuz berdi",
+    "incomingInvitesTitle": "Sizga kelgan takliflar",
+    "wantsToTalk": "<b>{name}</b> siz bilan suhbatlashishni xohlaydi",
+    "activeSessionsTitle": "Faol suhbatlaringiz",
+    "sessionStartedWith": "<b>{name}</b> bilan suhbat boshlangan",
+    "joinSession": "Suhbatga kirish",
+    "sentInvitesTitle": "Yuborgan takliflaringiz",
+    "sentAccepted": "<b>{name}</b> — qabul qildi ✅",
+    "sentWaiting": "<b>{name}</b> — javob kutilmoqda ⏳",
+    "online": "Hozir onlayn",
+    "offline": "Hozir oflayn",
+    "sendInvite": "Taklif yuborish"
   },
   "session": {
     "connecting": "Ulanmoqda...",
@@ -219,7 +243,7 @@
     "confirmEndBody": "Bu amalni ortga qaytarib bo'lmaydi.",
     "confirmEnd": "Ha, tugatish",
     "cancel": "Bekor qilish",
-    "crisisNote": "Hayotingizga xavf bo'lsa — 103 ga qo'ng'iroq qiling",
+    "crisisNote": "",
     "reportReasonTitle": "Nima uchun shikoyat qilyapsiz?",
     "reportReasonAbuse": "Haqorat / tahqirlash",
     "reportReasonInappropriate": "Nomunosib xatti-harakat",
@@ -245,7 +269,31 @@
     "cancelCall": "Qo'ng'iroqni bekor qilish",
     "noAnswerHint": "Hozircha javob yo'q. Yana kutishingiz yoki bekor qilishingiz mumkin.",
     "callCancelled": "Bu taklif bekor qilingan yoki rad etilgan.",
-    "reportDetailsPlaceholder": "Nima bo'lganini qisqacha yozing (ixtiyoriy)"
+    "reportDetailsPlaceholder": "Nima bo'lganini qisqacha yozing (ixtiyoriy)",
+    "actionError": "Amalni bajarib bo'lmadi",
+    "loading": "Yuklanmoqda...",
+    "notFound": "Bu suhbat topilmadi yoki sizga tegishli emas.",
+    "alreadyEnded": "Bu suhbat allaqachon tugagan.",
+    "backToDashboard": "Kabinetga qaytish",
+    "wantsToTalk": "<b>{name}</b> siz bilan suhbatlashishni xohlaydi",
+    "accept": "Qabul qilish",
+    "decline": "Rad etish",
+    "calling": "<b>{name}</b>ga qo'ng'iroq qilinmoqda...",
+    "waitingAnswer": "Kutilmoqda, javob berilishi bilan avtomatik boshlanadi",
+    "noCamera": "Kamera topilmadi — faqat audio bilan davom etyapsiz",
+    "noMic": "Mikrofon topilmadi",
+    "connectError": "Suhbatga ulanib bo'lmadi",
+    "cameraError": "Kamerani yoqib bo'lmadi",
+    "micError": "Mikrofonni yoqib bo'lmadi",
+    "tapToPlay": "Ovoz va videoni yoqish uchun bosing",
+    "chatClose": "Yopish",
+    "chatEmpty": "Hali xabar yo'q — birinchi bo'lib yozing",
+    "chatPlaceholder": "Xabar yozing...",
+    "chatSend": "Yuborish",
+    "chatSendError": "Xabar yuborib bo'lmadi",
+    "chatConnectError": "Yozishmaga ulanib bo'lmadi",
+    "chatOffline": "Yozishmaga ulanish yo'q, biroz kutib qayta urinib ko'ring",
+    "reportError": "Shikoyatni yuborib bo'lmadi, qayta urinib ko'ring"
   },
   "admin": {
     "queueTitle": "Moderatsiya navbati",
@@ -270,11 +318,19 @@
     "banDone": "Foydalanuvchi bloklandi",
     "reportClosed": "Shikoyat yopildi",
     "unbanDone": "Blokdan chiqarildi",
-    "actionError": "Amalni bajarib bo'lmadi"
+    "actionError": "Amalni bajarib bo'lmadi",
+    "noAccess": "Sizda bu sahifaga kirish huquqi yo'q",
+    "loadError": "Ro'yxatni yuklashda xato",
+    "approved": "Tasdiqlandi",
+    "rejected": "Rad etildi"
   },
   "common": {
     "loading": "Yuklanmoqda...",
     "error": "Xatolik yuz berdi",
     "save": "Saqlash"
+  },
+  "meta": {
+    "title": "Dardkash — sizni tinglashga tayyor odam bor",
+    "description": "Dardkash sizni hukm qilmasdan tinglaydigan odam bilan video, audio yoki yozishma orqali bog'laydi."
   }
 }

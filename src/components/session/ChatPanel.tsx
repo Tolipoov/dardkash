@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { buildWsUrl } from "@/lib/ws";
 import { useToast } from "@/components/ui/Toast";
 import { SendHorizontal, X } from "lucide-react";
+import { useTranslations } from "next-intl";
 
 // Bu kodlar bilan yopilsa, muammo vaqtinchalik emas (login yo'q, sessionId
 // yo'q, yoki bu suhbatga aloqasi yo'q) — qayta ulanishga urinish faqat
@@ -38,6 +39,7 @@ export default function ChatPanel({
   const wsRef = useRef<WebSocket | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const toast = useToast();
+  const t = useTranslations("session");
   const onIncomingRef = useRef(onIncoming);
   onIncomingRef.current = onIncoming;
 
@@ -70,7 +72,7 @@ export default function ChatPanel({
           setMessages((prev) => [...prev, data.message]);
           if (data.message.sender_id !== myUserId) onIncomingRef.current?.();
         } else if (data.type === "error") {
-          toast.push(data.message || "Xabar yuborib bo'lmadi", "error");
+          toast.push(t("chatSendError"), "error");
         }
       };
 
@@ -82,7 +84,7 @@ export default function ChatPanel({
       ws.onclose = (event) => {
         if (cancelled) return;
         if (FATAL_CLOSE_CODES.has(event.code)) {
-          setConnectionError("Yozishmaga ulanib bo'lmadi");
+          setConnectionError(t("chatConnectError"));
           return;
         }
         reconnectTimer = setTimeout(connect, 2000);
@@ -110,7 +112,7 @@ export default function ChatPanel({
     const text = input.trim();
     if (!text) return;
     if (wsRef.current?.readyState !== WebSocket.OPEN) {
-      toast.push("Yozishmaga ulanish yo'q, biroz kutib qayta urinib ko'ring", "error");
+      toast.push(t("chatOffline"), "error");
       return;
     }
     wsRef.current.send(JSON.stringify({ content: text }));
@@ -122,11 +124,11 @@ export default function ChatPanel({
   return (
     <div className="fixed inset-x-3 bottom-28 z-[70] flex h-[min(380px,50dvh)] flex-col overflow-hidden rounded-2xl border border-sahar/15 bg-tun-deep/95 shadow-2xl backdrop-blur-md sm:inset-x-auto sm:bottom-32 sm:right-6 sm:w-[340px]">
       <div className="flex items-center justify-between border-b border-sahar/10 px-4 py-2.5">
-        <span className="text-sm font-semibold text-sahar">Yozishma</span>
+        <span className="text-sm font-semibold text-sahar">{t("chat")}</span>
         <button
           onClick={onClose}
           className="text-sahar/50 hover:text-sahar"
-          aria-label="Yopish"
+          aria-label={t("chatClose")}
         >
           <X size={18} />
         </button>
@@ -138,7 +140,7 @@ export default function ChatPanel({
         )}
         {!connectionError && messages.length === 0 && (
           <p className="text-center text-xs text-sahar/40">
-            Hali xabar yo&apos;q — birinchi bo&apos;lib yozing
+            {t("chatEmpty")}
           </p>
         )}
         {messages.map((m) => {
@@ -165,7 +167,7 @@ export default function ChatPanel({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="Xabar yozing..."
+          placeholder={t("chatPlaceholder")}
           enterKeyHint="send"
           // min-w-0 — input'ning brauzer bergan minimal kengligi flex'da
           // torayishiga to'sqinlik qilib, yuborish tugmasini ekrandan
@@ -176,7 +178,7 @@ export default function ChatPanel({
         />
         <button
           onClick={send}
-          aria-label="Yuborish"
+          aria-label={t("chatSend")}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-barg text-sahar hover:bg-barg/90"
         >
           <SendHorizontal size={18} />
