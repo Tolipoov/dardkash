@@ -28,10 +28,15 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   // deb o'tib, keyin FK xatosi bilan 500 qaytarardi (masalan profil
   // saqlashda profiles_user_id_fkey).
   try {
-    const exists = await pool.query("SELECT 1 FROM users WHERE id = $1", [session.userId]);
+    const exists = await pool.query("SELECT banned_at FROM users WHERE id = $1", [session.userId]);
     if (exists.rows.length === 0) {
       res.clearCookie("dardkash_session");
       return res.status(401).json({ status: "error", message: "Hisob topilmadi, qayta kiring" });
+    }
+    // Bloklangan foydalanuvchining amaldagi sessiyasi ham shu yerda tugaydi.
+    if (exists.rows[0].banned_at) {
+      res.clearCookie("dardkash_session");
+      return res.status(401).json({ status: "error", code: "banned", message: "Hisobingiz bloklangan" });
     }
   } catch (err) {
     return next(err);

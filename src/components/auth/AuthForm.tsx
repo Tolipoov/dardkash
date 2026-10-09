@@ -10,6 +10,7 @@ export default function AuthForm() {
   const telegramRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const next = searchParams.get("next") || "/dashboard";
+  const blocked = searchParams.get("blocked") === "1";
 
   useEffect(() => {
     // Telegram Login Widget'ni skript orqali qo'shamiz — bu Telegram'ning
@@ -39,6 +40,11 @@ export default function AuthForm() {
           {t("title")}
         </h1>
         <p className="mt-2 text-sm text-kul/60 text-center">{t("subtitle")}</p>
+        {blocked && (
+          <p className="mt-5 rounded-2xl border border-gisht/30 bg-gisht/10 px-4 py-3 text-center text-sm text-kul">
+            {t("blocked")}
+          </p>
+        )}
         <div className="mt-8 flex flex-col gap-4">
           <a href={`/api/auth/google/start?next=${encodeURIComponent(next)}`}>
             <Button variant="primary" size="lg" className="w-full">

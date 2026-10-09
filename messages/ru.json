@@ -85,7 +85,8 @@
     "subtitle": "Войдите, чтобы продолжить",
     "withTelegram": "Войти через Telegram",
     "withGoogle": "Войти через Google",
-    "terms": "Продолжая, вы соглашаетесь с <termsLink>Условиями использования</termsLink> и <privacyLink>Политикой конфиденциальности</privacyLink>."
+    "terms": "Продолжая, вы соглашаетесь с <termsLink>Условиями использования</termsLink> и <privacyLink>Политикой конфиденциальности</privacyLink>.",
+    "blocked": "Ваш аккаунт заблокирован за нарушение правил. Если есть вопросы, напишите в Telegram-бот."
   },
   "terms": {
     "pageTitle": "Условия использования",
@@ -218,7 +219,7 @@
     "confirmEndBody": "Это действие нельзя отменить.",
     "confirmEnd": "Да, завершить",
     "cancel": "Отмена",
-    "crisisNote": "",
+    "crisisNote": "Если есть угроза жизни — звоните 103",
     "reportReasonTitle": "По какой причине вы жалуетесь?",
     "reportReasonAbuse": "Оскорбление",
     "reportReasonInappropriate": "Неподобающее поведение",
@@ -243,7 +244,8 @@
     "leaveBody": "Если выйти, разговор завершится.",
     "cancelCall": "Отменить звонок",
     "noAnswerHint": "Пока нет ответа. Можно подождать ещё или отменить.",
-    "callCancelled": "Это приглашение отменено или отклонено."
+    "callCancelled": "Это приглашение отменено или отклонено.",
+    "reportDetailsPlaceholder": "Кратко опишите, что произошло (необязательно)"
   },
   "admin": {
     "queueTitle": "Очередь модерации",
@@ -254,7 +256,21 @@
     "approve": "Одобрить",
     "reject": "Отклонить",
     "rejectReasonPlaceholder": "Причина отклонения (видна пользователю)",
-    "phoneAdminOnly": "Телефон (виден только админу)"
+    "phoneAdminOnly": "Телефон (виден только админу)",
+    "reportsTitle": "Жалобы",
+    "reportsEmpty": "Нерассмотренных жалоб нет",
+    "reportTotal": "всего жалоб: {count}",
+    "reportFrom": "Пожаловался: {name}",
+    "ban": "Заблокировать",
+    "banConfirm": "Да, заблокировать",
+    "alreadyBanned": "Уже заблокирован",
+    "reportDismiss": "Закрыть (без мер)",
+    "bannedTitle": "Заблокированные",
+    "unban": "Разблокировать",
+    "banDone": "Пользователь заблокирован",
+    "reportClosed": "Жалоба закрыта",
+    "unbanDone": "Разблокирован",
+    "actionError": "Не удалось выполнить действие"
   },
   "common": {
     "loading": "Загрузка...",

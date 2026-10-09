@@ -15,6 +15,7 @@ export default function ReportModal({
   const t = useTranslations("session");
   const toast = useToast();
   const [reason, setReason] = useState<"abuse" | "inappropriate" | "other" | "">("");
+  const [details, setDetails] = useState("");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -25,7 +26,7 @@ export default function ReportModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, details }),
       });
       if (!res.ok) throw new Error();
       setSent(true);
@@ -69,6 +70,14 @@ export default function ReportModal({
                 </button>
               ))}
             </div>
+            <textarea
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder={t("reportDetailsPlaceholder")}
+              maxLength={1000}
+              rows={3}
+              className="mt-3 w-full rounded-2xl border border-kul/15 bg-white/70 px-4 py-3 text-base outline-none focus:border-gisht sm:text-sm"
+            />
             <div className="mt-6 flex gap-3">
               <Button variant="ghost" className="flex-1" onClick={onClose}>
                 {t("cancel")}

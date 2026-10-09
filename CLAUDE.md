@@ -601,3 +601,12 @@ sinaganda topiladigan" xatolarga misol.
     Sweeper 24 soatdan eski takliflarni bekor qiladi.
 48. **[✅ TUZATILDI]** Admin'ga ariza xabarida nickname/bio/telefon va rad etish
     sababi `escapeHtml`siz edi — `<`/`&` bo'lsa Telegram xabarni rad etardi.
+49. **[✅ QO'SHILDI] Shikoyat va bloklash.** Shikoyat endi admin Telegram'iga
+    tugmalar bilan boradi (`report_ban:` / `report_ok:`), `/admin/moderation`da
+    "Shikoyatlar" va "Bloklanganlar" bo'limlari bor. Bloklash
+    (`server/src/moderation.ts`, `005_moderation.sql`, `users.banned_at`):
+    `requireAuth` 401 `code: "banned"` qaytaradi, qayta login `/auth?blocked=1`ga
+    tushadi, dardkash ro'yxat/matching'dan chiqadi, ochiq suhbatlari yopiladi.
+    Admin/moderatorni bloklab bo'lmaydi. ReportModal'ga izoh maydoni qo'shildi.
+    `crisisNote` endi bo'sh emas (103). **Qolgan:** maxsus ishonch telefoni
+    raqami, bloklangan odamni LiveKit xonasidan darhol chiqarish.

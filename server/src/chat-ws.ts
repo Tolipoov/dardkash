@@ -59,7 +59,10 @@ export function createChatWebSocketServer() {
     // "tinglashi" mumkin bo'lardi.
     const check = await pool
       .query(
-        "SELECT id FROM sessions WHERE id = $1 AND (speaker_id = $2 OR listener_id = $2)",
+        `SELECT s.id FROM sessions s
+         JOIN users u ON u.id = $2
+         WHERE s.id = $1 AND (s.speaker_id = $2 OR s.listener_id = $2)
+           AND u.banned_at IS NULL`,
         [sessionId, session.userId],
       )
       .catch(() => ({ rows: [] as unknown[] }));

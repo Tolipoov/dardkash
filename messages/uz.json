@@ -85,7 +85,8 @@
     "subtitle": "Davom etish uchun kiring",
     "withTelegram": "Telegram orqali kirish",
     "withGoogle": "Google orqali kirish",
-    "terms": "Davom etib, siz <termsLink>Foydalanish qoidalari</termsLink> va <privacyLink>Maxfiylik siyosati</privacyLink>ga rozilik bildirasiz."
+    "terms": "Davom etib, siz <termsLink>Foydalanish qoidalari</termsLink> va <privacyLink>Maxfiylik siyosati</privacyLink>ga rozilik bildirasiz.",
+    "blocked": "Hisobingiz qoidalar buzilgani sababli bloklangan. Savol bo'lsa, Telegram bot orqali yozing."
   },
   "terms": {
     "pageTitle": "Foydalanish qoidalari",
@@ -218,7 +219,7 @@
     "confirmEndBody": "Bu amalni ortga qaytarib bo'lmaydi.",
     "confirmEnd": "Ha, tugatish",
     "cancel": "Bekor qilish",
-    "crisisNote": "",
+    "crisisNote": "Hayotingizga xavf bo'lsa — 103 ga qo'ng'iroq qiling",
     "reportReasonTitle": "Nima uchun shikoyat qilyapsiz?",
     "reportReasonAbuse": "Haqorat / tahqirlash",
     "reportReasonInappropriate": "Nomunosib xatti-harakat",
@@ -243,7 +244,8 @@
     "leaveBody": "Chiqsangiz, suhbat tugaydi.",
     "cancelCall": "Qo'ng'iroqni bekor qilish",
     "noAnswerHint": "Hozircha javob yo'q. Yana kutishingiz yoki bekor qilishingiz mumkin.",
-    "callCancelled": "Bu taklif bekor qilingan yoki rad etilgan."
+    "callCancelled": "Bu taklif bekor qilingan yoki rad etilgan.",
+    "reportDetailsPlaceholder": "Nima bo'lganini qisqacha yozing (ixtiyoriy)"
   },
   "admin": {
     "queueTitle": "Moderatsiya navbati",
@@ -254,7 +256,21 @@
     "approve": "Tasdiqlash",
     "reject": "Rad etish",
     "rejectReasonPlaceholder": "Rad etish sababi (foydalanuvchiga ko'rinadi)",
-    "phoneAdminOnly": "Telefon (faqat admin ko'radi)"
+    "phoneAdminOnly": "Telefon (faqat admin ko'radi)",
+    "reportsTitle": "Shikoyatlar",
+    "reportsEmpty": "Ko'rib chiqilmagan shikoyat yo'q",
+    "reportTotal": "jami shikoyatlar: {count}",
+    "reportFrom": "Shikoyat qilgan: {name}",
+    "ban": "Bloklash",
+    "banConfirm": "Ha, bloklansin",
+    "alreadyBanned": "Allaqachon bloklangan",
+    "reportDismiss": "Yopish (chora ko'rilmaydi)",
+    "bannedTitle": "Bloklanganlar",
+    "unban": "Blokdan chiqarish",
+    "banDone": "Foydalanuvchi bloklandi",
+    "reportClosed": "Shikoyat yopildi",
+    "unbanDone": "Blokdan chiqarildi",
+    "actionError": "Amalni bajarib bo'lmadi"
   },
   "common": {
     "loading": "Yuklanmoqda...",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import Button from "@/components/ui/Button";
 import TopicTag from "@/components/ui/TopicTag";
@@ -15,8 +15,33 @@ interface PendingListener {
   topics: string[];
 }
 
+interface Report {
+  id: string;
+  reason: "abuse" | "inappropriate" | "other";
+  details: string | null;
+  created_at: string;
+  reporter_nickname: string | null;
+  reported_nickname: string | null;
+  reported_banned: boolean;
+  reported_total: number;
+}
+
+interface BannedUser {
+  user_id: string;
+  nickname: string | null;
+  banned_at: string;
+}
+
+const REASON_KEYS = {
+  abuse: "reportReasonAbuse",
+  inappropriate: "reportReasonInappropriate",
+  other: "reportReasonOther",
+} as const;
+
 export default function ModerationPage() {
   const t = useTranslations("admin");
+  const tSession = useTranslations("session");
+  const locale = useLocale();
   const tTopics = useTranslations("topics");
   const toast = useToast();
   const router = useRouter();
@@ -25,6 +50,23 @@ export default function ModerationPage() {
   const [loading, setLoading] = useState(true);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [reports, setReports] = useState<Report[]>([]);
+  const [banned, setBanned] = useState<BannedUser[]>([]);
+  // Bloklash — jiddiy amal: birinchi bosishda faqat tasdiq so'raladi.
+  const [banningId, setBanningId] = useState<string | null>(null);
+
+  const loadReports = useCallback(async () => {
+    try {
+      const [reportsRes, bannedRes] = await Promise.all([
+        fetch("/api/admin/reports", { credentials: "include" }),
+        fetch("/api/admin/users/banned", { credentials: "include" }),
+      ]);
+      if (reportsRes.ok) setReports((await reportsRes.json()).reports || []);
+      if (bannedRes.ok) setBanned((await bannedRes.json()).banned || []);
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,13 +83,14 @@ export default function ModerationPage() {
       }
       const data = await res.json();
       setQueue(data.pending || []);
+      await loadReports();
     } catch (err) {
       console.error(err);
       toast.push("Ro'yxatni yuklashda xato", "error");
     } finally {
       setLoading(false);
     }
-  }, [router, toast]);
+  }, [router, toast, loadReports]);
 
   useEffect(() => {
     load();
@@ -84,6 +127,45 @@ export default function ModerationPage() {
       toast.push("Rad etishda xato yuz berdi", "error");
     }
   }
+
+  async function resolveReport(reportId: string, ban: boolean) {
+    try {
+      const res = await fetch(`/api/admin/reports/${reportId}/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ ban }),
+      });
+      if (!res.ok) throw new Error();
+      setBanningId(null);
+      toast.push(ban ? t("banDone") : t("reportClosed"), "success");
+    } catch {
+      toast.push(t("actionError"), "error");
+    }
+    loadReports();
+  }
+
+  async function unban(userId: string) {
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/unban`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error();
+      toast.push(t("unbanDone"), "success");
+    } catch {
+      toast.push(t("actionError"), "error");
+    }
+    loadReports();
+  }
+
+  const formatDate = (value: string) =>
+    new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
+      day: "numeric",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(value));
 
   if (loading) {
     return <p className="px-6 py-20 text-center text-kul/50">{t("queueTitle")}...</p>;
@@ -139,6 +221,72 @@ export default function ModerationPage() {
               </div>
             ))}
           </div>
+        )}
+
+        <h2 className="mt-14 font-display text-2xl text-kul">{t("reportsTitle")}</h2>
+        {reports.length === 0 ? (
+          <p className="mt-6 text-kul/50">{t("reportsEmpty")}</p>
+        ) : (
+          <div className="mt-6 space-y-4">
+            {reports.map((r) => (
+              <div key={r.id} className="rounded-wave border border-gisht/25 bg-white/70 p-6">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h3 className="font-display text-lg text-kul">
+                    {r.reported_nickname || "—"}
+                  </h3>
+                  <span className="text-xs text-kul/40">{formatDate(r.created_at)}</span>
+                </div>
+                <p className="mt-1 text-sm text-kul/70">
+                  {tSession(REASON_KEYS[r.reason])}
+                  {" · "}
+                  {t("reportTotal", { count: r.reported_total })}
+                </p>
+                {r.details && (
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-kul [overflow-wrap:anywhere]">
+                    {r.details}
+                  </p>
+                )}
+                <p className="mt-2 text-xs text-kul/40">
+                  {t("reportFrom", { name: r.reporter_nickname || "—" })}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  {r.reported_banned ? (
+                    <span className="self-center text-sm text-gisht">{t("alreadyBanned")}</span>
+                  ) : banningId === r.id ? (
+                    <Button variant="danger" onClick={() => resolveReport(r.id, true)}>
+                      {t("banConfirm")}
+                    </Button>
+                  ) : (
+                    <Button variant="danger" onClick={() => setBanningId(r.id)}>
+                      {t("ban")}
+                    </Button>
+                  )}
+                  <Button variant="ghost" onClick={() => resolveReport(r.id, false)}>
+                    {t("reportDismiss")}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {banned.length > 0 && (
+          <>
+            <h2 className="mt-14 font-display text-2xl text-kul">{t("bannedTitle")}</h2>
+            <ul className="mt-6 divide-y divide-kul/10 overflow-hidden rounded-2xl border border-kul/10 bg-white/60">
+              {banned.map((u) => (
+                <li key={u.user_id} className="flex items-center justify-between gap-4 px-5 py-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-kul">{u.nickname || "—"}</p>
+                    <p className="mt-0.5 text-xs text-kul/50">{formatDate(u.banned_at)}</p>
+                  </div>
+                  <Button size="md" variant="secondary" onClick={() => unban(u.user_id)}>
+                    {t("unban")}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </section>

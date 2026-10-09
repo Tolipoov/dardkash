@@ -16,6 +16,7 @@ import { verifyTelegramAuth } from "./auth/telegram";
 import { createChatWebSocketServer } from "./chat-ws";
 import { findOrCreateGoogleUser, findOrCreateTelegramUser, pool } from "./db";
 import { runMigrations } from "./migrate";
+import { banUser, isBanned, resolveReport, unbanUser } from "./moderation";
 import { createNotifyWebSocketServer, notifyUser } from "./notify-ws";
 import {
   inviteStatusText,
@@ -70,6 +71,14 @@ app.param("sessionId", (_req, res, next, value) => {
   }
   next();
 });
+for (const name of ["userId", "reportId"]) {
+  app.param(name, (_req, res, next, value) => {
+    if (!UUID_RE.test(String(value))) {
+      return res.status(404).json({ status: "error", message: "Topilmadi" });
+    }
+    next();
+  });
+}
 
 const authLimiter = rateLimit({ name: "auth", windowMs: 10 * 60 * 1000, max: 30 });
 const callLimiter = rateLimit({ name: "call", windowMs: 60 * 1000, max: 10 });
@@ -144,6 +153,10 @@ app.get("/api/auth/google/callback", authLimiter, async (req, res) => {
       googleUser.id,
       googleUser.email,
     );
+    if (await isBanned(userId)) {
+      res.clearCookie("post_login_redirect");
+      return res.redirect(`${process.env.APP_BASE_URL}/auth?blocked=1`);
+    }
     const sessionToken = signSession(userId);
 
     res.cookie("dardkash_session", sessionToken, {
@@ -174,6 +187,9 @@ app.get("/api/auth/telegram/callback", authLimiter, async (req, res) => {
     }
 
     const userId = await findOrCreateTelegramUser(data.id);
+    if (await isBanned(userId)) {
+      return res.redirect(`${process.env.APP_BASE_URL}/auth?blocked=1`);
+    }
     const sessionToken = signSession(userId);
 
     res.cookie("dardkash_session", sessionToken, {
@@ -460,7 +476,7 @@ app.get("/api/listeners", requireAuth, async (req, res) => {
       JOIN profiles p ON p.user_id = lp.user_id
       JOIN users u ON u.id = lp.user_id
       LEFT JOIN profile_topics pt ON pt.user_id = lp.user_id
-      WHERE lp.status = 'approved' AND lp.user_id != $1
+      WHERE lp.status = 'approved' AND lp.user_id != $1 AND u.banned_at IS NULL
       GROUP BY u.id, p.nickname, p.age_range, lp.rating_avg, lp.sessions_count, lp.is_online, lp.last_seen_at`,
       [req.userId],
     );
@@ -567,6 +583,119 @@ app.post(
   },
 );
 
+app.get(
+  "/api/admin/reports",
+  requireAuth,
+  requireRole(["admin", "moderator"]),
+  async (_req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT r.id, r.reason, r.details, r.created_at, r.reported_user,
+               rp.nickname AS reporter_nickname,
+               tp.nickname AS reported_nickname,
+               (tu.banned_at IS NOT NULL) AS reported_banned,
+               (SELECT COUNT(*)::int FROM reports x
+                WHERE x.reported_user = r.reported_user) AS reported_total
+        FROM reports r
+        LEFT JOIN profiles rp ON rp.user_id = r.reported_by
+        LEFT JOIN profiles tp ON tp.user_id = r.reported_user
+        LEFT JOIN users tu ON tu.id = r.reported_user
+        WHERE NOT r.resolved
+        ORDER BY r.created_at ASC
+      `);
+      res.json({ status: "ok", reports: result.rows });
+    } catch (err) {
+      console.error("Shikoyatlarni olishda xato:", err);
+      res
+        .status(500)
+        .json({ status: "error", message: "Ro'yxatni olib bo'lmadi" });
+    }
+  },
+);
+
+app.post(
+  "/api/admin/reports/:reportId/resolve",
+  requireAuth,
+  requireRole(["admin", "moderator"]),
+  async (req, res) => {
+    try {
+      const outcome = await resolveReport(
+        req.params.reportId,
+        req.userId!,
+        req.body?.ban === true,
+      );
+      if (!outcome) {
+        return res
+          .status(404)
+          .json({ status: "error", message: "Shikoyat topilmadi" });
+      }
+      res.json({ status: "ok", banned: outcome.banned });
+    } catch (err) {
+      console.error("Shikoyatni yopishda xato:", err);
+      res.status(500).json({ status: "error", message: "Amalni bajarib bo'lmadi" });
+    }
+  },
+);
+
+app.get(
+  "/api/admin/users/banned",
+  requireAuth,
+  requireRole(["admin", "moderator"]),
+  async (_req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT u.id AS user_id, u.banned_at, p.nickname
+        FROM users u
+        LEFT JOIN profiles p ON p.user_id = u.id
+        WHERE u.banned_at IS NOT NULL
+        ORDER BY u.banned_at DESC
+      `);
+      res.json({ status: "ok", banned: result.rows });
+    } catch (err) {
+      console.error("Bloklanganlar ro'yxatini olishda xato:", err);
+      res
+        .status(500)
+        .json({ status: "error", message: "Ro'yxatni olib bo'lmadi" });
+    }
+  },
+);
+
+app.post(
+  "/api/admin/users/:userId/ban",
+  requireAuth,
+  requireRole(["admin", "moderator"]),
+  async (req, res) => {
+    try {
+      const banned = await banUser(req.params.userId, req.userId!, "manual");
+      if (!banned) {
+        return res.status(400).json({
+          status: "error",
+          message: "Bu foydalanuvchini bloklab bo'lmaydi",
+        });
+      }
+      res.json({ status: "ok" });
+    } catch (err) {
+      console.error("Bloklashda xato:", err);
+      res.status(500).json({ status: "error", message: "Bloklab bo'lmadi" });
+    }
+  },
+);
+
+app.post(
+  "/api/admin/users/:userId/unban",
+  requireAuth,
+  requireRole(["admin", "moderator"]),
+  async (req, res) => {
+    try {
+      await unbanUser(req.params.userId);
+      res.json({ status: "ok" });
+    } catch (err) {
+      console.error("Blokdan chiqarishda xato:", err);
+      res.status(500).json({ status: "error", message: "Amalni bajarib bo'lmadi" });
+    }
+  },
+);
+
 // Suhbatning joriy holatini qaytaradi — frontend shunga qarab
 // "kutilmoqda" yoki "faol" ekranini ko'rsatadi.
 app.get("/api/session/:sessionId", requireAuth, async (req, res) => {
@@ -646,7 +775,9 @@ app.post("/api/invites", requireAuth, callLimiter, async (req, res) => {
     }
 
     const listenerCheck = await pool.query(
-      "SELECT user_id FROM listener_profiles WHERE user_id = $1 AND status = 'approved'",
+      `SELECT lp.user_id FROM listener_profiles lp
+       JOIN users u ON u.id = lp.user_id
+       WHERE lp.user_id = $1 AND lp.status = 'approved' AND u.banned_at IS NULL`,
       [listenerId],
     );
     if (listenerCheck.rows.length === 0) {
@@ -843,7 +974,9 @@ app.post("/api/session/start", requireAuth, callLimiter, async (req, res) => {
     }
 
     const listenerCheck = await pool.query(
-      "SELECT user_id FROM listener_profiles WHERE user_id = $1 AND status = 'approved'",
+      `SELECT lp.user_id FROM listener_profiles lp
+       JOIN users u ON u.id = lp.user_id
+       WHERE lp.user_id = $1 AND lp.status = 'approved' AND u.banned_at IS NULL`,
       [listenerId],
     );
     if (listenerCheck.rows.length === 0) {
@@ -925,6 +1058,10 @@ app.post("/api/session/match", requireAuth, callLimiter, async (req, res) => {
          AND lp.is_online = true
          AND lp.last_seen_at > now() - interval '90 seconds'
          AND lp.user_id != $1
+         AND NOT EXISTS (
+           SELECT 1 FROM users bu
+           WHERE bu.id = lp.user_id AND bu.banned_at IS NOT NULL
+         )
          AND lp.user_id NOT IN (
            SELECT speaker_id FROM sessions
            WHERE status = 'active'
@@ -1138,17 +1275,28 @@ app.post("/api/session/:sessionId/rating", requireAuth, reportLimiter, async (re
   }
 });
 
+const REPORT_REASON_LABELS: Record<string, string> = {
+  abuse: "Haqorat / tahqirlash",
+  inappropriate: "Nomunosib xatti-harakat",
+  other: "Boshqa sabab",
+};
+
 app.post("/api/session/:sessionId/report", requireAuth, reportLimiter, async (req, res) => {
   try {
     const { sessionId } = req.params;
     const { reason, details } = req.body;
 
-    const validReasons = ["abuse", "inappropriate", "other"];
-    if (!validReasons.includes(reason)) {
+    if (typeof reason !== "string" || !Object.hasOwn(REPORT_REASON_LABELS, reason)) {
       return res
         .status(400)
         .json({ status: "error", message: "Noto'g'ri sabab" });
     }
+    if (details !== undefined && details !== null && typeof details !== "string") {
+      return res
+        .status(400)
+        .json({ status: "error", message: "Izoh matn bo'lishi kerak" });
+    }
+    const detailsText = details?.trim().slice(0, 1000) || null;
 
     const check = await pool.query(
       "SELECT speaker_id, listener_id FROM sessions WHERE id = $1 AND (speaker_id = $2 OR listener_id = $2)",
@@ -1163,11 +1311,40 @@ app.post("/api/session/:sessionId/report", requireAuth, reportLimiter, async (re
     const { speaker_id, listener_id } = check.rows[0];
     const reportedUser = req.userId === speaker_id ? listener_id : speaker_id;
 
-    await pool.query(
+    const inserted = await pool.query(
       `INSERT INTO reports (session_id, reported_by, reported_user, reason, details)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [sessionId, req.userId, reportedUser, reason, details || null],
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [sessionId, req.userId, reportedUser, reason, detailsText],
     );
+    const reportId = inserted.rows[0].id as string;
+
+    // Avval shikoyat faqat bazaga yozilardi — hech kim xabar topmasdi.
+    if (process.env.ADMIN_TELEGRAM_CHAT_ID) {
+      const names = await pool.query(
+        `SELECT
+           (SELECT nickname FROM profiles WHERE user_id = $1) AS reporter,
+           (SELECT nickname FROM profiles WHERE user_id = $2) AS reported,
+           (SELECT COUNT(*) FROM reports WHERE reported_user = $2) AS total`,
+        [req.userId, reportedUser],
+      );
+      const { reporter, reported, total } = names.rows[0];
+      await sendTelegramMessage(
+        process.env.ADMIN_TELEGRAM_CHAT_ID,
+        `🚨 <b>Yangi shikoyat</b>\n\n` +
+          `👤 Kimga: ${escapeHtml(reported || "—")} (jami shikoyatlar: ${total})\n` +
+          `✍️ Kimdan: ${escapeHtml(reporter || "—")}\n` +
+          `🏷 Sabab: ${REPORT_REASON_LABELS[reason]}` +
+          (detailsText ? `\n📝 ${escapeHtml(detailsText)}` : "") +
+          `\n\n${process.env.APP_BASE_URL}/admin/moderation`,
+        [
+          [
+            { text: "🚫 Bloklash", callback_data: `report_ban:${reportId}` },
+            { text: "✓ Yopish", callback_data: `report_ok:${reportId}` },
+          ],
+        ],
+      );
+    }
 
     res.json({ status: "ok" });
   } catch (err) {
@@ -1379,6 +1556,28 @@ async function handleTelegramWebhook(req: express.Request, res: express.Response
         );
       }
     }
+    return res.sendStatus(200);
+  }
+
+  if (action === "report_ban" || action === "report_ok") {
+    if (fromChatId !== process.env.ADMIN_TELEGRAM_CHAT_ID || !UUID_RE.test(targetId || "")) {
+      await answerCallbackQuery(callback.id, "Sizda bu amal uchun ruxsat yo'q");
+      return res.sendStatus(200);
+    }
+    const outcome = await resolveReport(targetId, null, action === "report_ban");
+    const text = !outcome
+      ? "Shikoyat topilmadi"
+      : action === "report_ok"
+        ? "✓ Shikoyat yopildi"
+        : outcome.banned
+          ? "🚫 Foydalanuvchi bloklandi"
+          : "Shikoyat yopildi (foydalanuvchi allaqachon bloklangan yoki bloklab bo'lmaydi)";
+    await editTelegramMessage(
+      chatId,
+      messageId,
+      `${escapeHtml(callback.message.text || "")}\n\n<b>${text}</b>`,
+    );
+    await answerCallbackQuery(callback.id, text);
     return res.sendStatus(200);
   }
 
