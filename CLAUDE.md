@@ -620,3 +620,14 @@ sinaganda topiladigan" xatolarga misol.
     Barcha qattiq yozilgan o'zbekcha UI matnlari `messages/*.json`ga o'tdi,
     sahifa title/description endi tilga qarab (`meta` namespace).
     **Qoida: UI matni faqat `t()` orqali.**
+51. **[✅ QO'SHILDI] SEO va xavfsizlik sarlavhalari (2026-10-09).**
+    `src/app/robots.ts`, `src/app/sitemap.ts` (manzil — `src/lib/site.ts`).
+    Noma'lum til segmenti (`/wp-login.php`, `/abc.txt`) endi 200 bilan bosh
+    sahifa emas, haqiqiy 404 (`[locale]/layout.tsx`da `notFound()`,
+    `src/app/not-found.tsx`). Jonli nginx'ga HSTS, `nosniff`,
+    `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` va `www` →
+    asosiy domen redirect qo'shildi; `deploy/dardkash.uz.conf` va yangi
+    `deploy/livekit.dardkash.uz.conf` — serverdagi haqiqiy konfiglarning
+    nusxasi (1-guruh #3 shu bilan hujjatlashtirildi). Backend `npm audit` toza.
+    **Qolgan:** frontend'da `next` 14 → 16 va `next-intl` 3 → 4 (audit shuni
+    talab qiladi, breaking); backup faqat shu serverda (tashqi nusxa yo'q).

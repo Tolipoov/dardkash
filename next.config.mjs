@@ -7,6 +7,7 @@ const nextConfig = {
   // Docker konteyneri uchun eng kichik, mustaqil build — node_modules'ning
   // faqat kerakli qismini o'z ichiga oladi, image hajmini kamaytiradi.
   output: 'standalone',
+  poweredByHeader: false,
 
   // Production'da nginx bitta domenda frontend va backend (/api/)ni
   // birlashtiradi (deploy/dardkash.uz.conf), shuning uchun frontend
