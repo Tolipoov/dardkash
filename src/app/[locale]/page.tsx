@@ -9,11 +9,12 @@ import RoleCards from "@/components/landing/RoleCards";
 import SafetyBlock from "@/components/landing/SafetyBlock";
 import { setRequestLocale } from "next-intl/server";
 
-export default function LandingPage({
-  params: { locale },
+export default async function LandingPage({
+  params,
 }: {
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
+  const { locale } = await params;
   setRequestLocale(locale);
 
   return (

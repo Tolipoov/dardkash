@@ -73,7 +73,9 @@ export default function CallNotifier() {
   // hisoblanmaydi (u band).
   const inSession = pathname.startsWith("/session/");
   const inSessionRef = useRef(inSession);
-  inSessionRef.current = inSession;
+  useEffect(() => {
+    inSessionRef.current = inSession;
+  }, [inSession]);
 
   useEffect(() => {
     const onAuthChanged = () => setAuthVersion((v) => v + 1);

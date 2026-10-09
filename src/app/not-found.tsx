@@ -20,6 +20,8 @@ export default function NotFound() {
       >
         <h1 style={{ fontSize: 48, margin: 0 }}>404</h1>
         <p style={{ margin: 0 }}>Sahifa topilmadi · Страница не найдена</p>
+        {/* Bu sahifa til layout'idan tashqarida — oddiy havola to'liq qayta yuklaydi. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a href="/" style={{ color: "inherit" }}>
           dardkash.uz
         </a>

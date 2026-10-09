@@ -88,6 +88,7 @@ export default function SessionPage() {
         const data = await res.json();
         if (!cancelled) {
           setSessionInfo(data.session);
+          if (data.session?.status === "active") setWasInCall(true);
           setLoadingInfo(false);
         }
       } catch {
@@ -114,6 +115,7 @@ export default function SessionPage() {
       const infoRes = await fetch(`/api/session/${sessionId}`, { credentials: "include" });
       const infoData = await infoRes.json();
       setSessionInfo(infoData.session);
+      if (infoData.session?.status === "active") setWasInCall(true);
     } catch {
       toast.push(t("actionError"), "error");
     } finally {
@@ -124,7 +126,6 @@ export default function SessionPage() {
   // 3) Video/audio — FAQAT suhbat "active" bo'lgandagina ulanamiz
   useEffect(() => {
     if (!sessionInfo || sessionInfo.status !== "active") return;
-    setWasInCall(true);
 
     // Agar oldingi marta rejalashtirilgan "suhbatni tugatish" hali
     // yuborilmagan bo'lsa (pastdagi izohga qarang), bekor qilamiz — bu
@@ -317,7 +318,6 @@ export default function SessionPage() {
   const scheduled = sessionInfo?.status === "scheduled";
   useEffect(() => {
     if (!scheduled) return;
-    setNoAnswer(false);
     const timer = setTimeout(() => setNoAnswer(true), 60000);
     return () => clearTimeout(timer);
   }, [scheduled]);

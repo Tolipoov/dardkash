@@ -3,10 +3,11 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 const SECTION_COUNT = 8;
 
 export default async function PrivacyPage({
-  params: { locale },
+  params,
 }: {
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
+  const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "privacy" });
 

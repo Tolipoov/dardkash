@@ -41,7 +41,9 @@ export default function ChatPanel({
   const toast = useToast();
   const t = useTranslations("session");
   const onIncomingRef = useRef(onIncoming);
-  onIncomingRef.current = onIncoming;
+  useEffect(() => {
+    onIncomingRef.current = onIncoming;
+  }, [onIncoming]);
 
   // Avval tarixni yuklaymiz, keyin real vaqt uchun WebSocket ulanamiz
   useEffect(() => {

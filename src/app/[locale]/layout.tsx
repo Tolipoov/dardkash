@@ -28,21 +28,23 @@ export function generateStaticParams() {
 }
 
 export async function generateMetadata({
-  params: { locale },
+  params,
 }: {
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
+  const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "meta" });
   return { title: t("title"), description: t("description") };
 }
 
 export default async function LocaleLayout({
   children,
-  params: { locale },
+  params,
 }: {
   children: ReactNode;
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
+  const { locale } = await params;
   // Avval noma'lum "til" (masalan /robots.txt, /wp-login.php) jimgina
   // o'zbekchaga tushib, bosh sahifani 200 bilan qaytarardi.
   if (!locales.includes(locale as Locale)) notFound();

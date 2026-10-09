@@ -69,7 +69,6 @@ export default function ModerationPage() {
   }, []);
 
   const load = useCallback(async () => {
-    setLoading(true);
     try {
       const res = await fetch("/api/admin/listeners/pending", { credentials: "include" });
       if (res.status === 401) {
@@ -93,6 +92,8 @@ export default function ModerationPage() {
   }, [router, toast, loadReports, t]);
 
   useEffect(() => {
+    // Ma'lumot yuklash: setState faqat so'rov javobidan keyin chaqiriladi.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 

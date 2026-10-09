@@ -11,7 +11,7 @@ Har bir dardkash moderatsiyadan o'tishi shart (xavfsizlik uchun).
 
 ## Texnologiya stack
 
-- **Frontend:** Next.js 14 (App Router) + TypeScript + Tailwind CSS
+- **Frontend:** Next.js 16 (App Router) + React 19 + TypeScript + Tailwind CSS
 - **i18n:** next-intl, UZ/RU tillar, `localePrefix: "as-needed"`
   (asosiy til — uz — prefikssiz: `dardkash.uz`, boshqa til prefiks bilan:
   `dardkash.uz/ru`). Buning uchun `next/link`/`next/navigation` EMAS,
@@ -629,5 +629,10 @@ sinaganda topiladigan" xatolarga misol.
     asosiy domen redirect qo'shildi; `deploy/dardkash.uz.conf` va yangi
     `deploy/livekit.dardkash.uz.conf` — serverdagi haqiqiy konfiglarning
     nusxasi (1-guruh #3 shu bilan hujjatlashtirildi). Backend `npm audit` toza.
-    **Qolgan:** frontend'da `next` 14 → 16 va `next-intl` 3 → 4 (audit shuni
-    talab qiladi, breaking); backup faqat shu serverda (tashqi nusxa yo'q).
+    **Qolgan:** backup faqat shu serverda (tashqi nusxa yo'q).
+52. **[✅ YANGILANDI] Next 14 → 16, React 18 → 19, next-intl 3 → 4.** Production
+    `npm audit` ikkala tomonda ham toza. Next 16 farqlari: `params` endi
+    `Promise` (`await params`); `src/middleware.ts` → `src/proxy.ts`;
+    `next lint` yo'q — `npm run lint` = `eslint .` (`eslint.config.mjs`).
+    Yangi lint qoidalari: render paytida `ref.current` yozilmaydi, effekt
+    ichida sinxron `setState` chaqirilmaydi.
