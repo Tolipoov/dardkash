@@ -5,13 +5,15 @@ import { useToast } from "@/components/ui/Toast";
 import TopicTag from "@/components/ui/TopicTag";
 import { useRouter } from "@/i18n/navigation";
 import { authHrefFor } from "@/components/landing/useLandingCta";
-import { TOPIC_CODES, type TopicCode } from "@/lib/topics";
+import { MAX_TOPICS, TOPIC_CODES, type TopicCode } from "@/lib/topics";
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 type Role = "speaker" | "listener" | "both";
 type Step = 1 | 2 | 3 | 4;
+type Lang = "uz" | "ru";
+type PreferredGender = "any" | "male" | "female";
 
 interface FormState {
   nickname: string;
@@ -19,12 +21,21 @@ interface FormState {
   gender: "male" | "female" | "skip" | "";
   phone: string;
   role: Role | "";
+  // `topics` — "nima haqida gaplashmoqchiman", `listenTopics` — "nimada
+  // tinglay olaman". "Ikkalasi ham" rolida ular alohida tanlanadi.
   topics: TopicCode[];
+  listenTopics: TopicCode[];
+  languages: Lang[];
+  preferredListenerGender: PreferredGender;
   bio: string;
   acceptedRules: boolean;
 }
 
-const AGE_RANGES = ["18-24", "25-34", "35-44", "45+"];
+const AGE_RANGES = ["18-24", "25-34", "35-44", "45-54", "55+"];
+const LANGS: Lang[] = ["uz", "ru"];
+// server/src/index.ts'dagi MIN_BIO_LENGTH bilan bir xil bo'lishi kerak.
+const MIN_BIO_LENGTH = 30;
+const MAX_BIO_LENGTH = 300;
 
 function formatPhoneNumber(value: string): string {
   const digits = value.replace(/\D/g, "").replace(/^998/, "");
@@ -39,6 +50,17 @@ function formatPhoneNumber(value: string): string {
   return "+998 " + parts.join(" ");
 }
 
+// Bo'sh (yoki maydonga bosilganda paydo bo'ladigan yolg'iz "+998") — joiz,
+// chunki raqam ixtiyoriy; chala yozilgani — yo'q.
+function isPhoneOk(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+  return digits === "" || digits === "998" || /^998\d{9}$/.test(digits);
+}
+
+function sameItems(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((v) => b.includes(v));
+}
+
 export default function OnboardingForm() {
   const t = useTranslations("onboarding");
   const tTopics = useTranslations("topics");
@@ -50,8 +72,17 @@ export default function OnboardingForm() {
   const toast = useToast();
   const [step, setStep] = useState<Step>(1);
   const [submitted, setSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [checkingProfile, setCheckingProfile] = useState(true);
   const [listenerStatus, setListenerStatus] = useState<string | null>(null);
+  // Yangi cheklovlar (mavzular soni, bio uzunligi) qo'shilishidan oldin
+  // saqlangan qiymatlar — o'zgarmagan bo'lsa, forma ularni rad etmaydi
+  // (backend ham xuddi shunday qiladi).
+  const [saved, setSaved] = useState<{
+    topics: string[];
+    listenTopics: string[];
+    bio: string;
+  }>({ topics: [], listenTopics: [], bio: "" });
   const [form, setForm] = useState<FormState>({
     nickname: "",
     ageRange: "",
@@ -59,6 +90,9 @@ export default function OnboardingForm() {
     phone: "",
     role: initialRole,
     topics: [],
+    listenTopics: [],
+    languages: [locale === "ru" ? "ru" : "uz"],
+    preferredListenerGender: "any",
     bio: "",
     acceptedRules: false,
   });
@@ -103,7 +137,18 @@ export default function OnboardingForm() {
           return;
         }
 
+        // Dardkash mavzulari alohida saqlanmagan bo'lsa (hali dardkash
+        // bo'lmagan), boshlang'ich taklif sifatida o'z mavzulari olinadi.
+        const listenTopics = p.listen_topics?.length
+          ? p.listen_topics
+          : p.topics || [];
+
         setListenerStatus(p.listener_status ?? null);
+        setSaved({
+          topics: p.topics || [],
+          listenTopics: p.listen_topics || [],
+          bio: p.bio || "",
+        });
         setForm((prev) => ({
           ...prev,
           nickname: p.nickname || prev.nickname,
@@ -120,6 +165,10 @@ export default function OnboardingForm() {
               ? p.wants
               : "both",
           topics: p.topics?.length ? p.topics : prev.topics,
+          listenTopics: listenTopics.length ? listenTopics : prev.listenTopics,
+          languages: p.languages?.length ? p.languages : prev.languages,
+          preferredListenerGender:
+            p.preferred_listener_gender || prev.preferredListenerGender,
           bio: p.bio || prev.bio,
           // `listener_profiles` qatori mavjudligi — 4-qadam (qoidalar)
           // avval haqiqatan ko'rsatilgan va qabul qilingan degani. Faqat
@@ -136,46 +185,140 @@ export default function OnboardingForm() {
   }, []);
 
   const wantsListener = form.role === "listener" || form.role === "both";
+  const wantsSpeaker = form.role === "speaker" || form.role === "both";
   const totalSteps: Step = wantsListener ? 4 : 3;
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  function toggleTopic(code: TopicCode) {
+  function toggleTopic(key: "topics" | "listenTopics", code: TopicCode) {
+    setForm((prev) => {
+      const current = prev[key];
+      if (current.includes(code)) {
+        return { ...prev, [key]: current.filter((c) => c !== code) };
+      }
+      if (current.length >= MAX_TOPICS) return prev;
+      return { ...prev, [key]: [...current, code] };
+    });
+  }
+
+  function toggleLanguage(lang: Lang) {
     setForm((prev) => ({
       ...prev,
-      topics: prev.topics.includes(code)
-        ? prev.topics.filter((c) => c !== code)
-        : [...prev.topics, code],
+      languages: prev.languages.includes(lang)
+        ? prev.languages.filter((l) => l !== lang)
+        : [...prev.languages, lang],
     }));
   }
 
-  const canProceed = useMemo(() => {
-    if (step === 1)
-      return form.nickname.trim().length >= 2 && form.ageRange !== "";
-    if (step === 2) return form.role !== "";
-    if (step === 3) return form.topics.length > 0;
-    if (step === 4) return form.bio.trim().length > 0 && form.acceptedRules;
-    return false;
-  }, [step, form]);
+  function randomNickname() {
+    const pick = (list: string) => {
+      const items = list.split(",");
+      return items[Math.floor(Math.random() * items.length)];
+    };
+    update(
+      "nickname",
+      `${pick(t("nicknameAdjectives"))} ${pick(t("nicknameNouns"))}`,
+    );
+  }
+
+  // Har bir qadamda nima yetishmayotganini aytadigan matn (yoki hammasi
+  // joyida bo'lsa null) — avval "Keyingisi" tugmasi sababini aytmasdan
+  // shunchaki o'chiq turardi.
+  function stepProblem(s: Step): string | null {
+    if (s === 1) {
+      if (form.nickname.trim().length < 2) return t("hintNickname");
+      if (form.ageRange === "") return t("hintAge");
+    }
+    if (s === 2 && form.role === "") return t("hintRole");
+    if (s === 3) {
+      const check = (list: string[], savedList: string[]) => {
+        if (list.length === 0) return t("hintTopics");
+        if (list.length > MAX_TOPICS && !sameItems(list, savedList))
+          return t("hintTopicsMax", { max: MAX_TOPICS });
+        return null;
+      };
+      const problem =
+        (wantsSpeaker ? check(form.topics, saved.topics) : null) ??
+        (wantsListener ? check(form.listenTopics, saved.listenTopics) : null);
+      if (problem) return problem;
+      if (form.languages.length === 0) return t("hintLanguages");
+    }
+    if (s === 4 && wantsListener) {
+      const bioLength = form.bio.trim().length;
+      if (
+        bioLength === 0 ||
+        (bioLength < MIN_BIO_LENGTH && form.bio !== saved.bio)
+      )
+        return t("hintBio", { min: MIN_BIO_LENGTH });
+      if (!isPhoneOk(form.phone)) return t("hintPhone");
+      if (!form.acceptedRules) return t("hintRules");
+    }
+    return null;
+  }
+
+  const allSteps: Step[] = wantsListener ? [1, 2, 3, 4] : [1, 2, 3];
+  // Tahrirlash rejimida hamma bo'lim bitta sahifada ko'rsatiladi.
+  const problem = isEditMode
+    ? (allSteps.map(stepProblem).find(Boolean) ?? null)
+    : stepProblem(step);
+  const show = (s: Step) => isEditMode || step === s;
 
   async function handleFinish() {
+    setSaving(true);
     try {
+      // Faqat "tinglovchi" roli uchun o'z mavzulari alohida so'ralmaydi —
+      // backend `topics`ni majburiy deb biladi, shuning uchun bir xil
+      // ro'yxat yuboriladi.
+      const topics = wantsSpeaker ? form.topics : form.listenTopics;
       const res = await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ ...form, wants: form.role, language: locale }),
+        body: JSON.stringify({
+          nickname: form.nickname,
+          ageRange: form.ageRange,
+          gender: form.gender,
+          phone: isPhoneOk(form.phone) ? form.phone : "",
+          wants: form.role,
+          topics,
+          listenTopics: wantsListener ? form.listenTopics : undefined,
+          languages: form.languages,
+          preferredListenerGender: form.preferredListenerGender,
+          bio: form.bio,
+          language: locale,
+        }),
       });
-      if (!res.ok) throw new Error("Saqlashda xato");
+      if (!res.ok) {
+        const code = (await res.json().catch(() => null))?.code as
+          | string
+          | undefined;
+        const key = `errors.${code}`;
+        toast.push(
+          code && t.has(key)
+            ? t(key, { max: MAX_TOPICS, min: MIN_BIO_LENGTH })
+            : t("saveError"),
+          "error",
+        );
+        if (code === "nickname_taken") setStep(1);
+        return;
+      }
       if (isEditMode && listenerStatus === "approved") {
         toast.push(t("profileUpdated"), "success");
       }
-      setSubmitted(true);
+      // Yangi (yoki qayta ko'rib chiqiladigan) dardkash arizasi uchun
+      // "ko'rib chiqilmoqda" ekrani, qolganlar to'g'ridan-to'g'ri kabinetga.
+      if (wantsListener && listenerStatus !== "approved") {
+        setSubmitted(true);
+      } else {
+        router.push("/dashboard");
+      }
     } catch (err) {
       console.error(err);
       toast.push(t("saveError"), "error");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -183,7 +326,7 @@ export default function OnboardingForm() {
   // "moderatordan o'tishi kerak" ekrani ko'rsatilmaydi — status
   // backend'da ham 'approved' holicha qoladi (server/src/index.ts'dagi
   // profil saqlash yo'lida).
-  if (submitted && wantsListener && listenerStatus !== "approved") {
+  if (submitted) {
     return (
       <section className="flex min-h-[70vh] items-center justify-center bg-sahar px-6 py-16">
         <div className="max-w-md text-center">
@@ -202,11 +345,6 @@ export default function OnboardingForm() {
     );
   }
 
-  if (submitted) {
-    router.push("/dashboard");
-    return null;
-  }
-
   // Asosiy sahifadagi tugmalar endi profilni OLDINDAN (hali shu sahifaga
   // o'tishdan avval) tekshiradi — shuning uchun bu holat deyarli faqat
   // to'g'ridan-to'g'ri URL orqali kirilganda ishga tushadi. Shu payt
@@ -217,41 +355,84 @@ export default function OnboardingForm() {
     return null;
   }
 
+  const labelClass = "mb-1.5 block text-sm font-medium text-kul/80";
+  const inputClass =
+    "w-full rounded-2xl border border-kul/15 bg-white/70 px-4 py-3 outline-none focus:border-barg";
+  const noteClass = "mt-1.5 text-xs text-kul/50";
+
+  function topicPicker(key: "topics" | "listenTopics", title: string) {
+    const selected = form[key];
+    return (
+      <div>
+        <div className="mb-2 flex items-baseline justify-between gap-3">
+          <span className="text-sm font-medium text-kul/80">{title}</span>
+          <span className="shrink-0 text-xs text-kul/50">
+            {t("topicsCount", { count: selected.length, max: MAX_TOPICS })}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {TOPIC_CODES.map((code) => (
+            <TopicTag
+              key={code}
+              as="button"
+              label={tTopics(code)}
+              selected={selected.includes(code)}
+              onClick={() => toggleTopic(key, code)}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <section className="bg-sahar px-6 py-14">
-      <div className="mx-auto max-w-xl">
-        <p className="mb-2 text-sm font-semibold text-barg">
-          {t("stepLabel", { current: step, total: totalSteps })}
-        </p>
-        <div className="mb-10 h-1.5 w-full overflow-hidden rounded-full bg-kul/10">
-          <div
-            className="h-full rounded-full bg-barg transition-all duration-300"
-            style={{ width: `${(step / totalSteps) * 100}%` }}
-          />
-        </div>
+      <div className={`mx-auto max-w-xl ${isEditMode ? "space-y-12" : ""}`}>
+        {isEditMode ? (
+          <h1 className="font-display text-3xl text-kul">{t("editTitle")}</h1>
+        ) : (
+          <>
+            <p className="mb-2 text-sm font-semibold text-barg">
+              {t("stepLabel", { current: step, total: totalSteps })}
+            </p>
+            <div className="mb-10 h-1.5 w-full overflow-hidden rounded-full bg-kul/10">
+              <div
+                className="h-full rounded-full bg-barg transition-all duration-300"
+                style={{ width: `${(step / totalSteps) * 100}%` }}
+              />
+            </div>
+          </>
+        )}
 
-        {step === 1 && (
+        {show(1) && (
           <div className="space-y-6">
-            <h1 className="font-display text-2xl text-kul">
+            <h2 className="font-display text-2xl text-kul">
               {t("step1Title")}
-            </h1>
+            </h2>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-kul/80">
-                {t("nickname")}
-              </label>
+              <label className={labelClass}>{t("nickname")}</label>
               <input
                 value={form.nickname}
                 onChange={(e) => update("nickname", e.target.value)}
                 placeholder={t("nicknamePlaceholder")}
-                className="w-full rounded-2xl border border-kul/15 bg-white/70 px-4 py-3 outline-none focus:border-barg"
+                maxLength={40}
+                className={inputClass}
               />
+              <div className="mt-1.5 flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+                <p className="text-xs text-kul/50">{t("nicknameHint")}</p>
+                <button
+                  type="button"
+                  onClick={randomNickname}
+                  className="text-xs font-semibold text-barg hover:underline"
+                >
+                  {t("nicknameRandom")}
+                </button>
+              </div>
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-kul/80">
-                {t("ageRange")}
-              </label>
+              <label className={labelClass}>{t("ageRange")}</label>
               <div className="flex flex-wrap gap-2">
                 {AGE_RANGES.map((range) => (
                   <TopicTag
@@ -266,9 +447,7 @@ export default function OnboardingForm() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-kul/80">
-                {t("gender")}
-              </label>
+              <label className={labelClass}>{t("gender")}</label>
               <div className="flex flex-wrap gap-2">
                 <TopicTag
                   as="button"
@@ -289,36 +468,16 @@ export default function OnboardingForm() {
                   onClick={() => update("gender", "skip")}
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-kul/80">
-                {t("phone")}
-              </label>
-              <input
-                value={form.phone}
-                onChange={(e) =>
-                  update("phone", formatPhoneNumber(e.target.value))
-                }
-                onFocus={() => {
-                  if (!form.phone) update("phone", "+998 ");
-                }}
-                placeholder="+998 90 123 45 67"
-                type="tel"
-                inputMode="numeric"
-                maxLength={17}
-                className="w-full rounded-2xl border border-kul/15 bg-white/70 px-4 py-3 outline-none focus:border-barg"
-              />
-              <p className="mt-1.5 text-xs text-kul/50">{t("phoneNote")}</p>
+              <p className={noteClass}>{t("genderNote")}</p>
             </div>
           </div>
         )}
 
-        {step === 2 && (
+        {show(2) && (
           <div className="space-y-4">
-            <h1 className="font-display text-2xl text-kul">
+            <h2 className="font-display text-2xl text-kul">
               {t("step2Title")}
-            </h1>
+            </h2>
             <p className="text-sm text-kul/60">{t("step2Subtitle")}</p>
 
             <div className="mt-4 grid gap-3">
@@ -346,40 +505,103 @@ export default function OnboardingForm() {
           </div>
         )}
 
-        {step === 3 && (
-          <div className="space-y-4">
-            <h1 className="font-display text-2xl text-kul">
-              {t("step3Title")}
-            </h1>
-            <p className="text-sm text-kul/60">{t("step3Subtitle")}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {TOPIC_CODES.map((code) => (
-                <TopicTag
-                  key={code}
-                  as="button"
-                  label={tTopics(code)}
-                  selected={form.topics.includes(code)}
-                  onClick={() => toggleTopic(code)}
-                />
-              ))}
+        {show(3) && (
+          <div className="space-y-7">
+            <div>
+              <h2 className="font-display text-2xl text-kul">
+                {t("step3Title")}
+              </h2>
+              <p className="mt-2 text-sm text-kul/60">{t("step3Subtitle")}</p>
             </div>
+
+            {wantsSpeaker && topicPicker("topics", t("topicsSpeakTitle"))}
+            {wantsListener &&
+              topicPicker("listenTopics", t("topicsListenTitle"))}
+
+            <div>
+              <label className={labelClass}>{t("languagesTitle")}</label>
+              <div className="flex flex-wrap gap-2">
+                {LANGS.map((lang) => (
+                  <TopicTag
+                    key={lang}
+                    as="button"
+                    label={t(lang === "uz" ? "langUz" : "langRu")}
+                    selected={form.languages.includes(lang)}
+                    onClick={() => toggleLanguage(lang)}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {wantsSpeaker && (
+              <div>
+                <label className={labelClass}>{t("prefGenderTitle")}</label>
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["any", t("prefAny")],
+                      ["female", t("prefFemale")],
+                      ["male", t("prefMale")],
+                    ] as [PreferredGender, string][]
+                  ).map(([value, label]) => (
+                    <TopicTag
+                      key={value}
+                      as="button"
+                      label={label}
+                      selected={form.preferredListenerGender === value}
+                      onClick={() => update("preferredListenerGender", value)}
+                    />
+                  ))}
+                </div>
+                <p className={noteClass}>{t("prefGenderNote")}</p>
+              </div>
+            )}
           </div>
         )}
 
-        {step === 4 && wantsListener && (
+        {show(4) && wantsListener && (
           <div className="space-y-6">
             <div>
-              <h1 className="font-display text-2xl text-kul">
+              <h2 className="font-display text-2xl text-kul">
                 {t("step4Title")}
-              </h1>
+              </h2>
+              <p className="mt-2 text-sm text-kul/60">{t("bioHint")}</p>
               <textarea
                 value={form.bio}
                 onChange={(e) => update("bio", e.target.value)}
                 placeholder={t("bioPlaceholder")}
                 rows={4}
-                maxLength={300}
-                className="mt-3 w-full rounded-2xl border border-kul/15 bg-white/70 px-4 py-3 outline-none focus:border-barg"
+                maxLength={MAX_BIO_LENGTH}
+                className={`mt-3 ${inputClass}`}
               />
+              <p className="mt-1 text-right text-xs text-kul/50">
+                {t("bioCount", {
+                  count: form.bio.length,
+                  max: MAX_BIO_LENGTH,
+                })}
+              </p>
+            </div>
+
+            <div>
+              <label className={labelClass}>{t("phone")}</label>
+              <input
+                value={form.phone}
+                onChange={(e) =>
+                  update("phone", formatPhoneNumber(e.target.value))
+                }
+                onFocus={() => {
+                  if (!form.phone) update("phone", "+998 ");
+                }}
+                onBlur={() => {
+                  if (form.phone.trim() === "+998") update("phone", "");
+                }}
+                placeholder="+998 90 123 45 67"
+                type="tel"
+                inputMode="numeric"
+                maxLength={17}
+                className={inputClass}
+              />
+              <p className={noteClass}>{t("phoneNote")}</p>
             </div>
 
             <div className="rounded-2xl border border-kul/10 bg-white/50 p-5">
@@ -406,29 +628,48 @@ export default function OnboardingForm() {
           </div>
         )}
 
-        <div className="mt-10 flex justify-between">
-          {step > 1 ? (
-            <Button
-              variant="ghost"
-              onClick={() => setStep((s) => (s - 1) as Step)}
-            >
-              {t("back")}
-            </Button>
-          ) : (
-            <span />
-          )}
+        <div className={isEditMode ? "" : "mt-10"}>
+          <div className="flex justify-between">
+            {isEditMode ? (
+              <Button variant="ghost" onClick={() => router.push("/dashboard")}>
+                {t("back")}
+              </Button>
+            ) : step > 1 ? (
+              <Button
+                variant="ghost"
+                onClick={() => setStep((s) => (s - 1) as Step)}
+              >
+                {t("back")}
+              </Button>
+            ) : (
+              <span />
+            )}
 
-          {step < totalSteps ? (
-            <Button
-              disabled={!canProceed}
-              onClick={() => setStep((s) => (s + 1) as Step)}
-            >
-              {t("next")}
-            </Button>
-          ) : (
-            <Button disabled={!canProceed} onClick={handleFinish}>
-              {t("finish")}
-            </Button>
+            {isEditMode ? (
+              <Button
+                disabled={Boolean(problem) || saving}
+                onClick={handleFinish}
+              >
+                {t("save")}
+              </Button>
+            ) : step < totalSteps ? (
+              <Button
+                disabled={Boolean(problem)}
+                onClick={() => setStep((s) => (s + 1) as Step)}
+              >
+                {t("next")}
+              </Button>
+            ) : (
+              <Button
+                disabled={Boolean(problem) || saving}
+                onClick={handleFinish}
+              >
+                {t("finish")}
+              </Button>
+            )}
+          </div>
+          {problem && (
+            <p className="mt-3 text-right text-xs text-kul/50">{problem}</p>
           )}
         </div>
       </div>

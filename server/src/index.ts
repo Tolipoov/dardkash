@@ -252,11 +252,39 @@ app.get(
 const VALID_WANTS = ["speaker", "listener", "both"];
 const VALID_GENDERS = ["male", "female", "skip"];
 const VALID_LANGUAGES = ["uz", "ru"];
+// "45+" — eski forma qiymati (endi "45-54" va "55+"ga bo'lingan); keshlangan
+// eski sahifadan kelgan so'rov rad etilmasligi uchun qabul qilinaveradi.
+const VALID_AGE_RANGES = ["18-24", "25-34", "35-44", "45-54", "55+", "45+"];
+const VALID_PREFERRED_GENDERS = ["any", "male", "female"];
+// Chegara bo'lmasa, hamma mavzuni belgilagan dardkash moslashtirishda
+// ("mavzular kesishishi" mezoni) doim yutib chiqadi.
+const MAX_TOPICS = 5;
+const MIN_BIO_LENGTH = 30;
+
+// Bo'sh qiymat (yoki maydonga bosilganda paydo bo'ladigan yolg'iz "+998")
+// → null. To'liq O'zbekiston raqami → bir xil ko'rinishda. Boshqasi →
+// undefined (noto'g'ri).
+function normalizePhone(value: unknown): string | null | undefined {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  if (digits === "" || digits === "998") return null;
+  if (!/^998\d{9}$/.test(digits)) return undefined;
+  return `+998 ${digits.slice(3, 5)} ${digits.slice(5, 8)} ${digits.slice(8, 10)} ${digits.slice(10, 12)}`;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === "string");
+}
+
+function sameSet(a: string[], b: string[]): boolean {
+  const setB = new Set(b);
+  return a.length === setB.size && a.every((v) => setB.has(v));
+}
 
 app.get("/api/profile", requireAuth, async (req, res) => {
   try {
     const profileResult = await pool.query(
-      "SELECT nickname, age_range, gender, phone, wants FROM profiles WHERE user_id = $1",
+      `SELECT nickname, age_range, gender, phone, wants, languages, preferred_listener_gender
+       FROM profiles WHERE user_id = $1`,
       [req.userId],
     );
     if (profileResult.rows.length === 0) {
@@ -265,6 +293,10 @@ app.get("/api/profile", requireAuth, async (req, res) => {
 
     const topicsResult = await pool.query(
       "SELECT topic_code FROM profile_topics WHERE user_id = $1",
+      [req.userId],
+    );
+    const listenTopicsResult = await pool.query(
+      "SELECT topic_code FROM listener_topics WHERE user_id = $1",
       [req.userId],
     );
     const bioResult = await pool.query(
@@ -277,6 +309,7 @@ app.get("/api/profile", requireAuth, async (req, res) => {
       profile: {
         ...profileResult.rows[0],
         topics: topicsResult.rows.map((r) => r.topic_code),
+        listen_topics: listenTopicsResult.rows.map((r) => r.topic_code),
         bio: bioResult.rows[0]?.bio || "",
         listener_status: bioResult.rows[0]?.status || null,
       },
@@ -290,90 +323,185 @@ app.get("/api/profile", requireAuth, async (req, res) => {
 });
 
 app.post("/api/profile", requireAuth, async (req, res) => {
-  const { nickname, ageRange, gender, phone, wants, topics, bio, language } = req.body;
+  const {
+    nickname,
+    ageRange,
+    gender,
+    wants,
+    bio,
+    language,
+    languages,
+    preferredListenerGender,
+  } = req.body;
+
+  // `code` — frontend xabarni foydalanuvchi tilida ko'rsatishi uchun
+  // (`onboarding.errors.<code>`); `message` — log/eski mijozlar uchun.
+  const fail = (code: string, message: string, status = 400) =>
+    res.status(status).json({ status: "error", code, message });
 
   if (
     typeof nickname !== "string" ||
     nickname.trim().length < 2 ||
     nickname.trim().length > 40
   ) {
-    return res.status(400).json({
-      status: "error",
-      message: "Taxallus 2-40 belgidan iborat bo'lishi kerak",
-    });
+    return fail("nickname_length", "Taxallus 2-40 belgidan iborat bo'lishi kerak");
   }
-  if (typeof ageRange !== "string" || !ageRange) {
-    return res
-      .status(400)
-      .json({ status: "error", message: "Yosh oralig'ini tanlang" });
+  if (typeof ageRange !== "string" || !VALID_AGE_RANGES.includes(ageRange)) {
+    return fail("age_required", "Yosh oralig'ini tanlang");
   }
   if (gender && !VALID_GENDERS.includes(gender)) {
-    return res
-      .status(400)
-      .json({ status: "error", message: "Noto'g'ri jins qiymati" });
+    return fail("gender_invalid", "Noto'g'ri jins qiymati");
   }
   if (language && !VALID_LANGUAGES.includes(language)) {
-    return res
-      .status(400)
-      .json({ status: "error", message: "Noto'g'ri til qiymati" });
+    return fail("language_invalid", "Noto'g'ri til qiymati");
+  }
+  if (
+    languages !== undefined &&
+    (!isStringArray(languages) ||
+      languages.length === 0 ||
+      !languages.every((l) => VALID_LANGUAGES.includes(l)))
+  ) {
+    return fail("languages_required", "Kamida bitta suhbat tilini tanlang");
+  }
+  if (
+    preferredListenerGender !== undefined &&
+    !VALID_PREFERRED_GENDERS.includes(preferredListenerGender)
+  ) {
+    return fail("gender_invalid", "Noto'g'ri jins qiymati");
   }
   if (!VALID_WANTS.includes(wants)) {
-    return res
-      .status(400)
-      .json({ status: "error", message: "Noto'g'ri rol tanlandi" });
+    return fail("role_invalid", "Noto'g'ri rol tanlandi");
   }
-  if (!Array.isArray(topics) || topics.length === 0) {
-    return res
-      .status(400)
-      .json({ status: "error", message: "Kamida bitta mavzu tanlang" });
+  if (!isStringArray(req.body.topics) || req.body.topics.length === 0) {
+    return fail("topics_required", "Kamida bitta mavzu tanlang");
   }
+  const topics = [...new Set(req.body.topics as string[])];
   const wantsListener = wants === "listener" || wants === "both";
+
+  // `listenTopics` — dardkash sifatida tinglay oladigan mavzular. Berilmasa
+  // (faqat "listener" roli yoki eski mijoz) — `topics`ning o'zi.
+  let listenTopics = topics;
+  if (wantsListener && req.body.listenTopics !== undefined) {
+    if (
+      !isStringArray(req.body.listenTopics) ||
+      req.body.listenTopics.length === 0
+    ) {
+      return fail("topics_required", "Kamida bitta mavzu tanlang");
+    }
+    listenTopics = [...new Set(req.body.listenTopics as string[])];
+  }
+
   if (
     wantsListener &&
     (typeof bio !== "string" || bio.trim().length === 0 || bio.length > 300)
   ) {
-    return res.status(400).json({
-      status: "error",
-      message: "Bio 1-300 belgidan iborat bo'lishi kerak",
-    });
+    return fail("bio_length", "Bio 1-300 belgidan iborat bo'lishi kerak");
+  }
+  const phone = normalizePhone(req.body.phone);
+  if (phone === undefined) {
+    return fail("phone_invalid", "Telefon raqami noto'g'ri");
   }
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
+    const allCodes = [...new Set([...topics, ...listenTopics])];
     const validTopics = await client.query(
       "SELECT code FROM topics WHERE code = ANY($1::text[])",
-      [topics],
+      [allCodes],
     );
-    if (validTopics.rows.length !== new Set(topics).size) {
+    if (validTopics.rows.length !== allCodes.length) {
       await client.query("ROLLBACK");
-      return res
-        .status(400)
-        .json({ status: "error", message: "Noto'g'ri mavzu kodi" });
+      return fail("topics_invalid", "Noto'g'ri mavzu kodi");
     }
 
+    // Yangi cheklovlar (mavzular soni, bio uzunligi) qo'shilishidan OLDIN
+    // saqlangan qiymatlar o'zgarmagan bo'lsa, o'tkazib yuboriladi — aks
+    // holda eski foydalanuvchi profilining boshqa maydonini ham tahrirlay
+    // olmay qolardi.
+    const storedTopics = await client.query(
+      "SELECT topic_code FROM profile_topics WHERE user_id = $1",
+      [req.userId],
+    );
+    const storedListenTopics = await client.query(
+      "SELECT topic_code FROM listener_topics WHERE user_id = $1",
+      [req.userId],
+    );
+    const existingListener = await client.query(
+      "SELECT status, bio FROM listener_profiles WHERE user_id = $1",
+      [req.userId],
+    );
+    const previousStatus = existingListener.rows[0]?.status as
+      | string
+      | undefined;
+    const previousBio = existingListener.rows[0]?.bio as string | undefined;
+
+    const tooMany = (next: string[], stored: { topic_code: string }[]) =>
+      next.length > MAX_TOPICS &&
+      !sameSet(
+        next,
+        stored.map((r) => r.topic_code),
+      );
+    if (
+      tooMany(topics, storedTopics.rows) ||
+      (wantsListener && tooMany(listenTopics, storedListenTopics.rows))
+    ) {
+      await client.query("ROLLBACK");
+      return fail("topics_max", `Ko'pi bilan ${MAX_TOPICS} ta mavzu tanlang`);
+    }
+    if (
+      wantsListener &&
+      bio.trim().length < MIN_BIO_LENGTH &&
+      bio !== previousBio
+    ) {
+      await client.query("ROLLBACK");
+      return fail(
+        "bio_short",
+        `Bio kamida ${MIN_BIO_LENGTH} belgidan iborat bo'lishi kerak`,
+      );
+    }
+
+    const nicknameTaken = await client.query(
+      "SELECT 1 FROM profiles WHERE lower(nickname) = lower($1) AND user_id != $2 LIMIT 1",
+      [nickname.trim(), req.userId],
+    );
+    if (nicknameTaken.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return fail("nickname_taken", "Bu taxallus band", 409);
+    }
+
+    // `languages`/`preferred_listener_gender` yuborilmasa (eski mijoz),
+    // saqlangan qiymat o'zgarmaydi; yangi profil uchun esa interfeys tili
+    // va "farqi yo'q" olinadi.
     await client.query(
-      `INSERT INTO profiles (user_id, nickname, age_range, gender, phone, wants, language)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO profiles (user_id, nickname, age_range, gender, phone, wants, language,
+                             languages, preferred_listener_gender)
+       VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'uz'),
+               COALESCE($8::text[], ARRAY[COALESCE($7, 'uz')]), COALESCE($9, 'any'))
        ON CONFLICT (user_id) DO UPDATE
        SET nickname = $2, age_range = $3, gender = $4, phone = $5, wants = $6,
-           language = COALESCE($7, profiles.language), updated_at = now()`,
+           language = COALESCE($7, profiles.language),
+           languages = COALESCE($8::text[], profiles.languages),
+           preferred_listener_gender = COALESCE($9, profiles.preferred_listener_gender),
+           updated_at = now()`,
       [
         req.userId,
         nickname.trim(),
         ageRange,
         gender || null,
-        phone || null,
+        phone,
         wants,
         language || null,
+        languages ? [...new Set(languages as string[])] : null,
+        preferredListenerGender ?? null,
       ],
     );
 
     await client.query("DELETE FROM profile_topics WHERE user_id = $1", [
       req.userId,
     ]);
-    for (const topicCode of topics as string[]) {
+    for (const topicCode of topics) {
       await client.query(
         "INSERT INTO profile_topics (user_id, topic_code) VALUES ($1, $2)",
         [req.userId, topicCode],
@@ -387,15 +515,18 @@ app.post("/api/profile", requireAuth, async (req, res) => {
     // deb bezovta qilinardi.
     let shouldNotifyAdmin = false;
     if (wantsListener) {
-      const existingListener = await client.query(
-        "SELECT status FROM listener_profiles WHERE user_id = $1",
-        [req.userId],
-      );
-      const previousStatus = existingListener.rows[0]?.status as
-        | string
-        | undefined;
       shouldNotifyAdmin =
         previousStatus === undefined || previousStatus === "rejected";
+
+      await client.query("DELETE FROM listener_topics WHERE user_id = $1", [
+        req.userId,
+      ]);
+      for (const topicCode of listenTopics) {
+        await client.query(
+          "INSERT INTO listener_topics (user_id, topic_code) VALUES ($1, $2)",
+          [req.userId, topicCode],
+        );
+      }
 
       await client.query(
         `INSERT INTO listener_profiles (user_id, bio, status)
@@ -413,10 +544,10 @@ app.post("/api/profile", requireAuth, async (req, res) => {
     await client.query("COMMIT");
 
     if (shouldNotifyAdmin && process.env.ADMIN_TELEGRAM_CHAT_ID) {
-      const topicsText = topics.join(", ");
+      const topicsText = listenTopics.join(", ");
       await sendTelegramMessage(
         process.env.ADMIN_TELEGRAM_CHAT_ID,
-        `🆕 <b>Yangi dardkash arizasi</b>\n\n👤 Ism: ${escapeHtml(nickname.trim())}\n📞 Tel: ${escapeHtml(String(phone || "—"))}\n📝 Bio: ${escapeHtml(bio)}\n🏷 Mavzular: ${escapeHtml(topicsText)}`,
+        `🆕 <b>Yangi dardkash arizasi</b>\n\n👤 Ism: ${escapeHtml(nickname.trim())}\n📞 Tel: ${escapeHtml(phone || "—")}\n📝 Bio: ${escapeHtml(bio)}\n🏷 Mavzular: ${escapeHtml(topicsText)}`,
         [
           [
             { text: "✅ Tasdiqlash", callback_data: `approve:${req.userId}` },
@@ -475,7 +606,7 @@ app.get("/api/listeners", requireAuth, async (req, res) => {
       FROM listener_profiles lp
       JOIN profiles p ON p.user_id = lp.user_id
       JOIN users u ON u.id = lp.user_id
-      LEFT JOIN profile_topics pt ON pt.user_id = lp.user_id
+      LEFT JOIN listener_topics pt ON pt.user_id = lp.user_id
       WHERE lp.status = 'approved' AND lp.user_id != $1 AND u.banned_at IS NULL
       GROUP BY u.id, p.nickname, p.age_range, lp.rating_avg, lp.sessions_count, lp.is_online, lp.last_seen_at`,
       [req.userId],
@@ -505,7 +636,7 @@ app.get(
       FROM listener_profiles lp
       JOIN profiles p ON p.user_id = lp.user_id
       JOIN users u ON u.id = lp.user_id
-      LEFT JOIN profile_topics pt ON pt.user_id = lp.user_id
+      LEFT JOIN listener_topics pt ON pt.user_id = lp.user_id
       WHERE lp.status = 'pending'
       GROUP BY u.id, p.nickname, p.phone, lp.bio, lp.created_at
       ORDER BY lp.created_at ASC
@@ -1030,10 +1161,14 @@ app.post("/api/session/start", requireAuth, callLimiter, async (req, res) => {
 app.post("/api/session/match", requireAuth, callLimiter, async (req, res) => {
   try {
     const profileResult = await pool.query(
-      "SELECT language FROM profiles WHERE user_id = $1",
+      "SELECT language, languages, preferred_listener_gender FROM profiles WHERE user_id = $1",
       [req.userId],
     );
-    const language = profileResult.rows[0]?.language || "uz";
+    const own = profileResult.rows[0];
+    const languages: string[] = own?.languages?.length
+      ? own.languages
+      : [own?.language || "uz"];
+    const preferredGender: string = own?.preferred_listener_gender || "any";
 
     const topicsResult = await pool.query(
       "SELECT topic_code FROM profile_topics WHERE user_id = $1",
@@ -1041,16 +1176,20 @@ app.post("/api/session/match", requireAuth, callLimiter, async (req, res) => {
     );
     const topicCodes = topicsResult.rows.map((r) => r.topic_code as string);
 
+    // Jins — ustuvorlik emas, QAT'IY filtr: "ayol dardkash" so'ragan odamni
+    // jimgina erkak dardkashga ulab qo'ygandan ko'ra, "hozircha mos dardkash
+    // yo'q" deyish to'g'riroq. Jinsini aytmagan dardkashlar faqat "farqi
+    // yo'q" tanlaganlarga chiqadi.
     const candidates = await pool.query(
       `SELECT
          lp.user_id,
-         (p.language = $2) AS language_match,
+         (p.languages && $2::text[]) AS language_match,
          COALESCE(overlap.cnt, 0) AS topic_overlap
        FROM listener_profiles lp
        JOIN profiles p ON p.user_id = lp.user_id
        LEFT JOIN (
          SELECT user_id, COUNT(*) AS cnt
-         FROM profile_topics
+         FROM listener_topics
          WHERE topic_code = ANY($3::text[])
          GROUP BY user_id
        ) overlap ON overlap.user_id = lp.user_id
@@ -1058,6 +1197,7 @@ app.post("/api/session/match", requireAuth, callLimiter, async (req, res) => {
          AND lp.is_online = true
          AND lp.last_seen_at > now() - interval '90 seconds'
          AND lp.user_id != $1
+         AND ($4::text = 'any' OR p.gender = $4::text)
          AND NOT EXISTS (
            SELECT 1 FROM users bu
            WHERE bu.id = lp.user_id AND bu.banned_at IS NOT NULL
@@ -1073,7 +1213,7 @@ app.post("/api/session/match", requireAuth, callLimiter, async (req, res) => {
          )
        ORDER BY language_match DESC, topic_overlap DESC, lp.rating_avg DESC, lp.sessions_count ASC
        LIMIT 1`,
-      [req.userId, language, topicCodes],
+      [req.userId, languages, topicCodes, preferredGender],
     );
 
     if (candidates.rows.length === 0) {

@@ -358,7 +358,7 @@ ro'yxatdagi **birinchi onlayn** tinglovchini tanlardi — na mavzu, na til
 hisobga olinardi. Endi to'liq backend'da hisoblanadigan real algoritm bor:
 
 22. **`POST /api/session/match`** (`server/src/index.ts`) — ustuvorlik
-    tartibida tanlaydi: (1) til mosligi (`profiles.language`), (2) mavzular
+    tartibida tanlaydi: (1) til mosligi (`profiles.languages`, 11-guruh #54), (2) mavzular
     kesishishi (`profile_topics` — nechta umumiy mavzu), (3) yuqoriroq
     reyting (`rating_avg`), (4) kamroq suhbatlar soni (yuk taqsimoti —
     doim bir xil "top" tinglovchiga hamma yugurmasin). Faqat `status =
@@ -636,3 +636,28 @@ sinaganda topiladigan" xatolarga misol.
     `next lint` yo'q — `npm run lint` = `eslint .` (`eslint.config.mjs`).
     Yangi lint qoidalari: render paytida `ref.current` yozilmaydi, effekt
     ichida sinxron `setState` chaqirilmaydi.
+
+### 11-guruh — Ro'yxatdan o'tish formasi va matching maydonlari (2026-10-12)
+
+53. **[✅ YANGILANDI] Onboarding formasi.** Telefon endi faqat dardkashdan,
+    4-qadamda so'raladi (ixtiyoriy; avval maydonga bosib o'tilsa bazaga
+    `"+998 "` saqlanardi — backend `normalizePhone()` bilan tekshiradi).
+    Mavzular 8 → 14 ta (`006_onboarding_fields.sql`, `src/lib/topics.ts`),
+    har ro'yxatda ko'pi bilan 5 ta (`MAX_TOPICS`). Bio kamida 30 belgi.
+    Taxallus takrorlanmaydi (409 `nickname_taken`) + "tasodifiy taxallus"
+    tugmasi. Yosh: `45+` → `45-54`/`55+`. Tugma nega o'chiqligi yozib
+    turiladi (`stepProblem()`). `?edit=1` — hamma bo'lim bitta sahifada.
+    `POST /api/profile` xatolari endi `code` qaytaradi
+    (`onboarding.errors.<code>`).
+    **Qoida: yangi cheklov eski ma'lumotni bloklamasin** — mavzular soni va
+    bio uzunligi saqlangan qiymat o'zgarmagan bo'lsa tekshirilmaydi
+    (frontend `saved`, backend `sameSet`/`previousBio`).
+54. **[✅ QO'SHILDI] Matching uchun yangi maydonlar** (`007_matching_prefs.sql`):
+    `profiles.languages` (suhbat tillari; `language` — interfeys tili bo'lib
+    qoladi), `profiles.preferred_listener_gender` (`/api/session/match`da
+    QAT'IY filtr — mos jinsdagi dardkash bo'lmasa 404), `listener_topics`
+    (dardkash TINGLAYDIGAN mavzular; `profile_topics` — o'zi gaplashmoqchi
+    bo'lganlari). `/api/listeners`, admin navbati va matching endi
+    `listener_topics`ni o'qiydi.
+    **Qolgan:** dashboard'dagi qo'lda tanlanadigan ro'yxat jins afzalligini
+    hisobga olmaydi; `ListenerCard`da til/jins ko'rsatilmaydi.
