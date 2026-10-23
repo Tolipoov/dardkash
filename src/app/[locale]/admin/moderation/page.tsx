@@ -170,7 +170,7 @@ export default function ModerationPage() {
   }
 
   return (
-    <section className="min-h-screen bg-sahar px-6 py-14">
+    <section className="min-h-screen bg-sahar px-4 py-10 sm:px-6 sm:py-14">
       <div className="mx-auto max-w-3xl">
         <h1 className="font-display text-2xl text-kul">{t("queueTitle")}</h1>
 
@@ -199,19 +199,19 @@ export default function ModerationPage() {
                 </div>
 
                 {rejectingId === item.user_id ? (
-                  <div className="mt-4 flex gap-2">
+                  <div className="mt-4 flex flex-wrap gap-2">
                     <input
                       value={reason}
                       onChange={(e) => setReason(e.target.value)}
                       placeholder={t("rejectReasonPlaceholder")}
-                      className="flex-1 rounded-xl border border-kul/15 bg-white px-3 py-2 text-sm outline-none focus:border-gisht"
+                      className="min-w-0 flex-1 basis-40 rounded-xl border border-kul/15 bg-white px-3 py-2 text-sm outline-none focus:border-gisht"
                     />
                     <Button variant="danger" disabled={!reason} onClick={() => reject(item.user_id)}>
                       {t("reject")}
                     </Button>
                   </div>
                 ) : (
-                  <div className="mt-4 flex gap-3">
+                  <div className="mt-4 flex flex-wrap gap-3">
                     <Button onClick={() => approve(item.user_id)}>{t("approve")}</Button>
                     <Button variant="ghost" onClick={() => setRejectingId(item.user_id)}>
                       {t("reject")}

@@ -8,7 +8,7 @@ export default async function Hero() {
   const t = await getTranslations("landing");
 
   return (
-    <section className="mx-auto grid max-w-6xl items-center gap-16 px-4 pb-24 pt-12 md:grid-cols-[1.15fr_1fr]">
+    <section className="mx-auto grid [&>*]:min-w-0 max-w-6xl items-center gap-16 px-4 pb-24 pt-12 md:grid-cols-[1.15fr_1fr]">
       <div>
         <h1 className="mb-6 text-pretty font-display text-[34px] leading-[1.1] tracking-[-0.02em] text-kul md:text-[60px]">
           {t("title")}

@@ -13,7 +13,7 @@ export default function RoleCards() {
     <section className="mx-auto max-w-6xl px-4 pb-26 pt-6">
       <h2 className="mb-3 font-display text-[28px] leading-tight md:text-[40px] text-kul">{t("rolesTitle")}</h2>
       <p className="mb-12 text-[17px] text-kul/60">{t("rolesSubtitle")}</p>
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid [&>*]:min-w-0 gap-6 md:grid-cols-2">
         <RoleCard
           tone="barg"
           title={t("roleSpeakerTitle")}

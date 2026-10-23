@@ -46,7 +46,7 @@ export default function ListenerCard({
   const extraTopics = Math.max(0, listener.topics.length - MOBILE_TOPICS);
 
   return (
-    <div className="flex flex-col justify-between rounded-wave border border-kul/10 bg-white/70 p-4 sm:p-6">
+    <div className="flex min-w-0 flex-col justify-between rounded-wave border border-kul/10 bg-white/70 p-4 sm:p-6">
       <div>
         <div className="flex items-center justify-between">
           {/* Taxallus va avatar — profil sahifasiga havola. Onlayn holati —
@@ -128,14 +128,16 @@ export default function ListenerCard({
         </div>
       </div>
 
-      {/* Asosiy amal (qo'ng'iroq yoki taklif) va qo'ng'iroqsiz xabar — bir qatorda. */}
-      <div className="mt-4 flex gap-2 sm:mt-5">
+      {/* Asosiy amal (qo'ng'iroq yoki taklif) va qo'ng'iroqsiz xabar — bir qatorda;
+          joy yetmasa (tor Telegram oynasi, telefonda katta shrift) "Xabar"
+          pastki qatorga tushadi — avval kartochkadan chiqib, sahifani suradi. */}
+      <div className="mt-4 flex flex-wrap gap-2 sm:mt-5">
         {listener.online ? (
-          <Button className="flex-1" onClick={() => onStart(listener.id)}>
+          <Button className="flex-1 grow-[3]" onClick={() => onStart(listener.id)}>
             {t("startSession")}
           </Button>
         ) : (
-          <Button className="flex-1" variant="secondary" onClick={() => onInvite(listener.id)}>
+          <Button className="flex-1 grow-[3]" variant="secondary" onClick={() => onInvite(listener.id)}>
             {t("sendInvite")}
           </Button>
         )}
@@ -143,7 +145,7 @@ export default function ListenerCard({
           type="button"
           onClick={() => onMessage(listener.id)}
           title={t("messageAction")}
-          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-barg/40 bg-barg/5 px-4 text-sm font-semibold text-barg transition-colors hover:bg-barg/15"
+          className="inline-flex grow items-center justify-center gap-1.5 whitespace-nowrap rounded-full border border-barg/40 py-2.5 bg-barg/5 px-4 text-sm font-semibold text-barg transition-colors hover:bg-barg/15"
         >
           <MessageCircle size={16} aria-hidden />
           {t("messageShort")}

@@ -11,7 +11,7 @@ export default async function HowItWorks() {
   return (
     <div id="how">
       <h2 className="mb-10 font-display text-[28px] leading-tight text-kul md:mb-14 md:text-[40px]">{t("howTitle")}</h2>
-      <div className="grid gap-8 md:grid-cols-3 md:gap-12">
+      <div className="grid [&>*]:min-w-0 gap-8 md:grid-cols-3 md:gap-12">
         {steps.map((step, i) => (
           <div key={step.title} className="grid grid-cols-[48px_1fr] items-start gap-4 md:flex md:flex-col md:gap-[18px]">
             <span className="grid size-12 place-items-center rounded-full bg-sahar font-display text-xl text-barg md:size-16 md:text-[26px]">

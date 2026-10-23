@@ -1007,3 +1007,12 @@ sinaganda topiladigan" xatolarga misol.
     - Push kartochkasi brauzer bloklagan bo'lsa kabinetda chiqmaydi.
     - Bosh sahifada `/api/profile` 5 marta so'ralardi — `useLandingCta`
       endi umumiy so'rov (5 soniyalik modul keshi).
+89. **[✅ TUZATILDI] Telegram Mini App'da kabinet o'ngga surilardi (2026-10-23).**
+    Telegram webview (ayniqsa Android) telefonning shrift o'lchamini qo'llaydi —
+    Tailwind `rem`da bo'lgani uchun hamma narsa kattalashadi. 360px + 150% shriftda
+    `ListenerCard` grid elementi (`min-width: auto`) va `shrink-0` "Xabar" tugmasi
+    kartochkani 22px kengaytirib, butun sahifani surardi. Endi kartochka `min-w-0`,
+    tugmalar qatori `flex-wrap` (joy yetmasa "Xabar" pastga tushadi), kabinet va
+    admin sahifalarida telefonda `px-4`, bosh sahifa grid'larida `[&>*]:min-w-0`.
+    **Tekshirish usuli:** `html{font-size:150%}` qo'shib 320/360px'da
+    `scrollWidth` o'lchash — oddiy 100% sinovda bu ko'rinmaydi.

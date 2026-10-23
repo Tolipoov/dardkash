@@ -13,7 +13,7 @@ export default async function Formats() {
     <div className="pt-30">
       <h2 className="mb-3 font-display text-[28px] leading-tight md:text-[40px] text-kul">{t("formatsTitle")}</h2>
       <p className="mb-12 text-[17px] text-kul/60">{t("formatsSubtitle")}</p>
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid [&>*]:min-w-0 gap-5 md:grid-cols-3">
         {items.map(({ Icon, t: title, d }) => (
           <div key={title} className="flex flex-col gap-3.5 rounded-[32px] bg-sahar p-9">
             <span className="grid size-14 place-items-center rounded-full bg-barg-100 text-barg">

@@ -7,7 +7,7 @@ export default async function Faq() {
   const t = await getTranslations("landing");
 
   return (
-    <section className="mx-auto grid max-w-6xl gap-18 px-4 pb-26 pt-30 md:grid-cols-[1fr_1.6fr]">
+    <section className="mx-auto grid [&>*]:min-w-0 max-w-6xl gap-18 px-4 pb-26 pt-30 md:grid-cols-[1fr_1.6fr]">
       <h2 className="font-display text-[28px] leading-tight md:text-[40px] text-kul">{t("faqTitle")}</h2>
       <div className="flex flex-col gap-3">
         {QUESTIONS.map((qKey, i) => (

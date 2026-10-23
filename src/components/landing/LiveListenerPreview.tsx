@@ -89,7 +89,7 @@ export default function LiveListenerPreview({ sample }: { sample: ReactNode }) {
   const isLive = live.length > 0;
 
   return (
-    <section className="mx-auto grid max-w-6xl items-center gap-18 px-4 py-26 md:grid-cols-[1fr_440px]">
+    <section className="mx-auto grid [&>*]:min-w-0 max-w-6xl items-center gap-18 px-4 py-26 md:grid-cols-[1fr_440px]">
       <div>
         <h2 className="mb-5 font-display text-[28px] leading-tight md:text-[40px] text-kul">
           {isLive ? t("listenerPreviewLiveTitle") : t("listenerPreviewTitle")}

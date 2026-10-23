@@ -11,7 +11,7 @@ export default async function SafetyBlock() {
 
   return (
     <div className="py-26">
-      <div className="grid items-center gap-14 rounded-[40px] bg-barg-100 p-8 md:grid-cols-2 md:p-14">
+      <div className="grid [&>*]:min-w-0 items-center gap-14 rounded-[40px] bg-barg-100 p-8 md:grid-cols-2 md:p-14">
         <div>
           <p className="mb-9 font-display text-[28px] leading-[1.35] text-barg-ink">{t("safetyBody")}</p>
           <div className="flex flex-col gap-[22px]">
@@ -37,17 +37,17 @@ export default async function SafetyBlock() {
             <div className="absolute left-1/2 top-[44%] grid size-[120px] -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-tun-deep font-display text-[40px] text-yulduz">
               {t("safetyPreviewInitial")}
             </div>
-            <div className="absolute inset-x-0 bottom-[22px] flex justify-center gap-2.5">
+            <div className="absolute inset-x-0 bottom-[22px] flex justify-center gap-2 sm:gap-2.5">
               <span className="grid size-12 place-items-center rounded-full bg-sahar/10 text-sahar">
                 <Mic size={20} strokeWidth={2.75} />
               </span>
               <span className="grid size-12 place-items-center rounded-full bg-sahar/10 text-sahar">
                 <Video size={20} strokeWidth={2.75} />
               </span>
-              <span className="flex h-12 items-center rounded-full bg-sahar px-5 text-sm font-bold text-tun">
+              <span className="flex h-12 items-center whitespace-nowrap rounded-full bg-sahar px-3.5 text-sm sm:px-5 font-bold text-tun">
                 {t("safetyPreviewStop")}
               </span>
-              <span className="flex h-12 items-center rounded-full bg-gisht px-5 text-sm font-bold text-sahar">
+              <span className="flex h-12 items-center whitespace-nowrap rounded-full bg-gisht px-3.5 text-sm sm:px-5 font-bold text-sahar">
                 {t("safetyPreviewReport")}
               </span>
             </div>

@@ -669,7 +669,7 @@ export default function DashboardPage() {
     // foydalanuvchi /onboarding'ga o'tishidan oldin kabinet bir lahza
     // ko'rinib qolardi.
     return (
-      <section className="bg-sahar px-6 py-14" aria-busy="true">
+      <section className="bg-sahar px-4 py-10 sm:px-6 sm:py-14" aria-busy="true">
         <div className="mx-auto max-w-6xl animate-pulse">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="h-8 w-56 rounded-lg bg-kul/10" />
@@ -700,7 +700,7 @@ export default function DashboardPage() {
           : null;
 
   return (
-    <section className="bg-sahar px-6 py-14">
+    <section className="bg-sahar px-4 py-10 sm:px-6 sm:py-14">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>

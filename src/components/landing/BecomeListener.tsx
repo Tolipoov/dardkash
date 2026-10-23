@@ -17,7 +17,7 @@ export default function BecomeListener() {
 
   return (
     <div className="mx-auto max-w-6xl px-4">
-      <section className="grid gap-14 rounded-[48px] bg-yulduz-100 p-8 md:grid-cols-[1fr_1.2fr] md:p-16">
+      <section className="grid [&>*]:min-w-0 gap-14 rounded-[48px] bg-yulduz-100 p-8 md:grid-cols-[1fr_1.2fr] md:p-16">
         <div>
           <h2 className="mb-4 font-display text-[28px] leading-tight md:text-[40px] text-yulduz-ink">
             {t("becomeTitle")}
