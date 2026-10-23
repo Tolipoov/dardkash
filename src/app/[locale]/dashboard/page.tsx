@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "@/lib/analytics";
 import PushPrompt from "@/components/call/PushPrompt";
 import SpeakerMiniProfile from "@/components/profile/SpeakerMiniProfile";
 import Avatar from "@/components/ui/Avatar";
@@ -344,6 +345,7 @@ export default function DashboardPage() {
   // fetch'dan OLDIN ochamiz: aks holda (await'dan keyin) mobil brauzerlar
   // uni popup deb bloklaydi.
   async function connectTelegram() {
+    track("telegram_link_clicked", { from: "dashboard" });
     setLinkingTelegram(true);
     if (!(await openTelegramLink())) {
       toast.push(t("telegramLinkError"), "error");
@@ -370,6 +372,7 @@ export default function DashboardPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
+      track("call_started", { from: "card" });
       router.push(`/session/${data.sessionId}`);
     } catch (err) {
       console.error(err);
@@ -404,6 +407,7 @@ export default function DashboardPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.message);
         setInviteTarget(null);
+        track("message_started", { from: "card" });
         router.push(`/messages/${data.sessionId}`);
       } catch (err) {
         console.error(err);
@@ -423,6 +427,7 @@ export default function DashboardPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       toast.push(t("inviteSent"), "success");
+      track("invite_sent", { with_message: Boolean(inviteMessage.trim()) });
       setInviteTarget(null);
       loadInvites();
     } catch (err) {
@@ -493,6 +498,7 @@ export default function DashboardPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setMyWaiting(data.waiting);
+      track("waitlist_joined");
       setWaitPrompt(false);
     } catch (err) {
       console.error(err);
@@ -586,6 +592,7 @@ export default function DashboardPage() {
       const data = await res.json();
       if (!res.ok) {
         if (res.status === 404) {
+          track("find_listener", { result: "none_online" });
           setWaitPrompt(true);
           fetch("/api/listeners/next-available", { credentials: "include" })
             .then((r) => (r.ok ? r.json() : null))
@@ -595,6 +602,7 @@ export default function DashboardPage() {
         else toast.push(t("matchError"), "info");
         return;
       }
+      track("find_listener", { result: "matched" });
       router.push(`/session/${data.sessionId}`);
     } catch (err) {
       console.error(err);

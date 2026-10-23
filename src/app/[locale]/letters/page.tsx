@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "@/lib/analytics";
 import { NOTIFY_EVENT } from "@/components/call/CallNotifier";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -104,6 +105,7 @@ export default function LettersPage() {
       }
       setDraft("");
       toast.push(data.pending ? t("sentPending") : t("sent"), "success");
+      track("letter_sent", { first: Boolean(data.pending) });
       router.push(`/letters/${data.letterId}`);
     } catch {
       toast.push(t("error"), "error");

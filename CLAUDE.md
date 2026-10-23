@@ -952,3 +952,12 @@ sinaganda topiladigan" xatolarga misol.
     Telegram ko'chirish, tasdiq xabari. `tests` Docker image'ga kirmaydi.
     **Qoida: yangi funksiya yoki tuzatish — shu yerga test qo'shing va deploy'dan
     oldin `npm test` ishga tushiring.**
+84. **[✅ QO'SHILDI] Umami hodisalari** (`src/lib/analytics.ts`, `track()`).
+    Umami skriptini nginx o'zi qo'shadi (`/etc/nginx/snippets/umami.conf`,
+    panel stats.tolipov.uz). Hodisalar: `login_click`, `signup_completed`,
+    `profile_updated`, `find_listener` (matched/none_online), `waitlist_joined`,
+    `call_started`, `invite_sent`, `message_started`, `letter_sent`,
+    `telegram_link_clicked`, `push_prompt`, `feedback_sent`. **Qoida: hodisa
+    ma'lumotiga shaxsiy narsa (taxallus, matn, ID) qo'yilmaydi.**
+    **Ochiq:** zaxira nusxani serverdan tashqariga chiqarish — bazada shaxsiy
+    ma'lumot bor, shifrlash va manzil bo'yicha foydalanuvchi qarori kerak.

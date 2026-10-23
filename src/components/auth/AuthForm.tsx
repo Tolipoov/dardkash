@@ -1,4 +1,5 @@
 "use client";
+import { track } from "@/lib/analytics";
 import Button from "@/components/ui/Button";
 import { Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
@@ -46,7 +47,10 @@ export default function AuthForm() {
           </p>
         )}
         <div className="mt-8 flex flex-col gap-4">
-          <a href={`/api/auth/google/start?next=${encodeURIComponent(next)}`}>
+          <a
+            href={`/api/auth/google/start?next=${encodeURIComponent(next)}`}
+            onClick={() => track("login_click", { method: "google" })}
+          >
             <Button variant="primary" size="lg" className="w-full">
               {t("withGoogle")}
             </Button>

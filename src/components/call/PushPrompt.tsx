@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "@/lib/analytics";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { disablePush, enablePush, getPushState, type PushState } from "@/lib/push";
@@ -38,6 +39,7 @@ export default function PushPrompt({ variant }: { variant: "card" | "settings" }
     try {
       const next = await enablePush();
       setState(next);
+      track("push_prompt", { result: next });
       if (next === "on") toast.push(t("enabled"), "success");
       else if (next === "denied") toast.push(t("deniedToast"), "info");
     } catch (err) {

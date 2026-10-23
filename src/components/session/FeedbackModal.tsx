@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "@/lib/analytics";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/Button";
@@ -34,6 +35,8 @@ export default function FeedbackModal({
 
   async function submit() {
     setSent(true);
+    // Faqat umumiy belgilar — izoh/rahmat matni yuborilmaydi.
+    track("feedback_sent", { mood, listened, thanks: Boolean(thanks.trim()) });
     try {
       await fetch(`/api/session/${sessionId}/rating`, {
         method: "POST",

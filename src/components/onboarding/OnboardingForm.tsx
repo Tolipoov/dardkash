@@ -1,5 +1,6 @@
 "use client";
 
+import { track } from "@/lib/analytics";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import TopicTag from "@/components/ui/TopicTag";
@@ -246,6 +247,7 @@ export default function OnboardingForm() {
   }, [telegramLinked]);
 
   async function connectTelegram() {
+    track("telegram_link_clicked", { from: "onboarding" });
     setLinkingTelegram(true);
     if (!(await openTelegramLink())) toast.push(t("telegramLinkError"), "error");
     setLinkingTelegram(false);
@@ -441,6 +443,7 @@ export default function OnboardingForm() {
       if (isEditMode && listenerStatus === "approved") {
         toast.push(t("profileUpdated"), "success");
       }
+      track(isEditMode ? "profile_updated" : "signup_completed", { role: form.role });
       // Yangi (yoki qayta ko'rib chiqiladigan) dardkash arizasi uchun
       // "ko'rib chiqilmoqda" ekrani, qolganlar to'g'ridan-to'g'ri kabinetga.
       if (wantsListener && listenerStatus !== "approved") {
