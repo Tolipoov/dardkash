@@ -3,6 +3,7 @@
 import { track } from "@/lib/analytics";
 import { NOTIFY_EVENT } from "@/components/call/CallNotifier";
 import Button from "@/components/ui/Button";
+import ShowMoreButton from "@/components/ui/ShowMoreButton";
 import { useToast } from "@/components/ui/Toast";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -29,6 +30,9 @@ interface OpenLetter {
   topics: string[];
 }
 
+const PAGE = 10;
+type Section = "mine" | "assigned" | "open";
+
 // "Xat" rejimi: yozma, kechikkan suhbat (server/src/letters.ts).
 export default function LettersPage() {
   const t = useTranslations("letters");
@@ -40,13 +44,22 @@ export default function LettersPage() {
   const [mine, setMine] = useState<LetterSummary[]>([]);
   const [assigned, setAssigned] = useState<LetterSummary[]>([]);
   const [open, setOpen] = useState<OpenLetter[]>([]);
+  // Har bo'lim alohida sahifalanadi; yangilanish ham shu sonlar bilan.
+  const [limits, setLimits] = useState({ mine: PAGE, assigned: PAGE, open: PAGE });
+  const [hasMore, setHasMore] = useState({ mine: false, assigned: false, open: false });
+  const [loadingMore, setLoadingMore] = useState<Section | null>(null);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/letters", { credentials: "include" });
+      const qs = new URLSearchParams({
+        mine: String(limits.mine),
+        assigned: String(limits.assigned),
+        open: String(limits.open),
+      });
+      const res = await fetch(`/api/letters?${qs}`, { credentials: "include" });
       if (res.status === 401) {
         router.replace("/auth");
         return;
@@ -56,11 +69,24 @@ export default function LettersPage() {
       setMine(data.mine);
       setAssigned(data.assigned);
       setOpen(data.open);
+      if (data.hasMore) setHasMore(data.hasMore);
       setLoaded(true);
     } catch (err) {
       console.error("Xatlarni yuklashda xato:", err);
+    } finally {
+      setLoadingMore(null);
     }
-  }, [router]);
+  }, [router, limits]);
+
+  function showMore(section: Section) {
+    setLoadingMore(section);
+    setLimits((prev) => ({ ...prev, [section]: prev[section] + PAGE }));
+  }
+
+  const moreButton = (section: Section) =>
+    hasMore[section] && (
+      <ShowMoreButton loading={loadingMore === section} onClick={() => showMore(section)} />
+    );
 
   useEffect(() => {
     // Ma'lumot yuklash: setState faqat so'rov javobidan keyin chaqiriladi.
@@ -268,6 +294,7 @@ export default function LettersPage() {
                 </div>
               ))}
             </div>
+            {moreButton("open")}
           </>
         )}
 
@@ -275,6 +302,7 @@ export default function LettersPage() {
           <>
             <h2 className="mt-12 font-display text-xl text-kul">{t("assignedTitle")}</h2>
             {list(assigned)}
+            {moreButton("assigned")}
           </>
         )}
 
@@ -282,7 +310,10 @@ export default function LettersPage() {
         {loaded && mine.length === 0 ? (
           <p className="mt-4 text-sm text-kul/50">{t("empty")}</p>
         ) : (
-          list(mine)
+          <>
+            {list(mine)}
+            {moreButton("mine")}
+          </>
         )}
       </div>
     </section>

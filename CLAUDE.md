@@ -979,3 +979,13 @@ sinaganda topiladigan" xatolarga misol.
     saytning yorug' `sahar-dim` foniga: logo + shior + ogohlantirish,
     "Platforma" va "Ma'lumot" ustunlari, Telegram bot havolasi
     (`NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` bo'lsa).
+87. **[✅ QO'SHILDI] Xabarlar va xatlarda sahifalash** (2026-10-23).
+    `GET /api/conversations?limit=N` (standart 20; avval qat'iy 50 ta va faqat
+    60 kunlik — eski yozishmalar umuman ko'rinmasdi, endi muddat cheklovi yo'q)
+    va `GET /api/letters?mine=N&assigned=N&open=N` (har bo'lim standart 10;
+    avval qat'iy 30) → `hasMore`. Offset emas, **limit** usuli
+    (`server/src/pagination.ts`, `parseListLimit`): "Yana ko'rsatish" so'raladigan
+    sonni oshiradi, avtomatik yangilanish ham shu sonni so'raydi — yangi xabar
+    kelib tartib o'zgarsa ham takror/tushib qolish yo'q. Umumiy tugma:
+    `components/ui/ShowMoreButton.tsx` (kabinet ham shuni ishlatadi).
+    `/api/unread` hisobi avvalgidek 60 kunlik.

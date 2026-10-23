@@ -2,6 +2,7 @@
 
 import { NOTIFY_EVENT } from "@/components/call/CallNotifier";
 import Avatar from "@/components/ui/Avatar";
+import ShowMoreButton from "@/components/ui/ShowMoreButton";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
@@ -18,6 +19,8 @@ interface Conversation {
   unread: number;
 }
 
+const PAGE = 20;
+
 // Taklif/suhbat yozishmalari ro'yxati — qo'ng'iroq sahifasiga kirmasdan
 // yozishish uchun (GET /api/conversations).
 export default function MessagesPage() {
@@ -25,19 +28,29 @@ export default function MessagesPage() {
   const locale = useLocale();
   const router = useRouter();
   const [items, setItems] = useState<Conversation[] | null>(null);
+  // Nechtasi so'raladi — "Yana ko'rsatish" oshiradi, yangilanish ham shu sonda.
+  const [limit, setLimit] = useState(PAGE);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/conversations", { credentials: "include" });
+      const res = await fetch(`/api/conversations?limit=${limit}`, { credentials: "include" });
       if (res.status === 401) {
         router.replace("/auth");
         return;
       }
-      if (res.ok) setItems((await res.json()).conversations);
+      if (res.ok) {
+        const data = await res.json();
+        setItems(data.conversations);
+        setHasMore(Boolean(data.hasMore));
+      }
     } catch (err) {
       console.error("Yozishmalarni yuklashda xato:", err);
+    } finally {
+      setLoadingMore(false);
     }
-  }, [router]);
+  }, [router, limit]);
 
   useEffect(() => {
     // Ma'lumot yuklash: setState faqat so'rov javobidan keyin chaqiriladi.
@@ -112,6 +125,15 @@ export default function MessagesPage() {
               </li>
             ))}
           </ul>
+        )}
+        {hasMore && (
+          <ShowMoreButton
+            loading={loadingMore}
+            onClick={() => {
+              setLoadingMore(true);
+              setLimit((n) => n + PAGE);
+            }}
+          />
         )}
       </div>
     </section>

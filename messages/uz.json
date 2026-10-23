@@ -503,6 +503,7 @@
     "rejected": "Rad etildi"
   },
   "common": {
+    "showMore": "Yana ko'rsatish",
     "loading": "Yuklanmoqda...",
     "error": "Xatolik yuz berdi",
     "save": "Saqlash"

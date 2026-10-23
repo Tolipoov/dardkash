@@ -15,6 +15,7 @@ import { requireAuth, requireRole } from "./auth/middleware";
 import { verifyTelegramAuth, verifyTelegramWebAppData } from "./auth/telegram";
 import { createChatWebSocketServer } from "./chat-ws";
 import { findOrCreateGoogleUser, findOrCreateTelegramUser, pool } from "./db";
+import { parseListLimit } from "./pagination";
 import { createLettersRouter, handleLetterAdminAction } from "./letters";
 import {
   approveListener,
@@ -1543,6 +1544,7 @@ app.post("/api/invites/:sessionId/decline", requireAuth, async (req, res) => {
 // oxirgi xabar bo'yicha. 60 kundan eskilari ko'rsatilmaydi.
 app.get("/api/conversations", requireAuth, async (req, res) => {
   try {
+    const limit = parseListLimit(req.query.limit, 20);
     const result = await pool.query(
       `SELECT s.id, s.status,
               CASE WHEN s.speaker_id = $1 THEN 'speaker' ELSE 'listener' END AS my_role,
@@ -1566,12 +1568,15 @@ app.get("/api/conversations", requireAuth, async (req, res) => {
          ORDER BY m.created_at DESC LIMIT 1
        ) last ON true
        WHERE (s.speaker_id = $1 OR s.listener_id = $1)
-         AND last.created_at > now() - interval '60 days'
-       ORDER BY last.created_at DESC
-       LIMIT 50`,
-      [req.userId],
+       ORDER BY last.created_at DESC, s.id
+       LIMIT $2`,
+      [req.userId, limit + 1],
     );
-    res.json({ status: "ok", conversations: result.rows });
+    res.json({
+      status: "ok",
+      conversations: result.rows.slice(0, limit),
+      hasMore: result.rows.length > limit,
+    });
   } catch (err) {
     console.error("Yozishmalarni olishda xato:", err);
     res.status(500).json({ status: "error", message: "Yozishmalarni olib bo'lmadi" });

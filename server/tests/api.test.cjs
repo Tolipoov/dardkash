@@ -183,6 +183,47 @@ describe("suhbatlar tarixi", () => {
   });
 });
 
+describe("ro'yxatlar sahifalash", () => {
+  it("yozishmalar ?limit bilan, eski (60 kundan oldingi) ham ko'rinadi", async () => {
+    const speaker = await createUser(env);
+    const listener = await createUser(env, { listener: true });
+    for (let i = 0; i < 25; i++) {
+      const s = await env.q(
+        "INSERT INTO sessions (speaker_id, listener_id, status) VALUES ($1, $2, 'ended') RETURNING id",
+        [speaker, listener],
+      );
+      await env.q(
+        "INSERT INTO chat_messages (session_id, sender_id, content, created_at) VALUES ($1, $2, 'salom', now() - ($3 || ' days')::interval)",
+        [s.rows[0].id, listener, String(i * 4)],
+      );
+    }
+    const first = await env.api(speaker, "GET", "/api/conversations");
+    assert.equal(first.body.conversations.length, 20);
+    assert.equal(first.body.hasMore, true);
+    const all = await env.api(speaker, "GET", "/api/conversations?limit=40");
+    assert.equal(all.body.conversations.length, 25);
+    assert.equal(all.body.hasMore, false);
+    assert.equal(new Set(all.body.conversations.map((c) => c.id)).size, 25);
+  });
+
+  it("xatlar har bo'lim alohida sahifalanadi", async () => {
+    const author = await createUser(env);
+    for (let i = 0; i < 12; i++) {
+      const l = await env.q(
+        "INSERT INTO letters (author_id, status, last_message_at) VALUES ($1, 'closed', now() - ($2 || ' hours')::interval) RETURNING id",
+        [author, String(i)],
+      );
+      await env.q("INSERT INTO letter_messages (letter_id, sender_id, body) VALUES ($1, $2, 'xat')", [l.rows[0].id, author]);
+    }
+    const first = await env.api(author, "GET", "/api/letters");
+    assert.equal(first.body.mine.length, 10);
+    assert.equal(first.body.hasMore.mine, true);
+    const more = await env.api(author, "GET", "/api/letters?mine=20");
+    assert.equal(more.body.mine.length, 12);
+    assert.equal(more.body.hasMore.mine, false);
+  });
+});
+
 describe("login", () => {
   // Telegram widget imzosi — haqiqiy widget kabi bot token bilan.
   const telegramLogin = (tgId, next) => {

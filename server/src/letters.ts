@@ -1,6 +1,7 @@
 import express from "express";
 import { requireAuth } from "./auth/middleware";
 import { pool } from "./db";
+import { parseListLimit } from "./pagination";
 import { fileReport, REPORT_REASON_LABELS } from "./moderation";
 import { isUserConnected, notifyUser } from "./notify-ws";
 import { pushIfOffline } from "./push";
@@ -25,6 +26,8 @@ import {
 const MAX_LETTER_LENGTH = 2000;
 // Bir odamda bir vaqtda ochiq/olingan xatlar soni.
 const MAX_ACTIVE_LETTERS = 3;
+// Har bo'limda birinchi sahifa hajmi (frontend "Yana ko'rsatish"da oshiradi).
+const LETTERS_PAGE = 10;
 export const OPEN_LETTER_TTL_DAYS = 7;
 // Dardkash olib, shuncha vaqt javob yozmasa — xat boshqalarga qaytadi.
 export const TAKEN_REPLY_TTL_HOURS = 48;
@@ -244,6 +247,12 @@ export function createLettersRouter() {
 
   router.get("/", async (req, res) => {
     try {
+      // Har bo'lim alohida sahifalanadi: ?mine=N&assigned=N&open=N.
+      const limits = {
+        mine: parseListLimit(req.query.mine, LETTERS_PAGE),
+        assigned: parseListLimit(req.query.assigned, LETTERS_PAGE),
+        open: parseListLimit(req.query.open, LETTERS_PAGE),
+      };
       const summary = `
         l.id, l.status, l.created_at, l.last_message_at,
         (SELECT LEFT(m.body, 160) FROM letter_messages m
@@ -255,16 +264,16 @@ export function createLettersRouter() {
                 (l.last_message_at > l.author_seen_at) AS has_new
          FROM letters l LEFT JOIN profiles lp ON lp.user_id = l.listener_id
          WHERE l.author_id = $1
-         ORDER BY l.last_message_at DESC LIMIT 30`,
-        [req.userId],
+         ORDER BY l.last_message_at DESC, l.id LIMIT $2`,
+        [req.userId, limits.mine + 1],
       );
       const assigned = await pool.query(
         `SELECT ${summary}, ap.nickname AS partner_nickname,
                 (l.listener_seen_at IS NULL OR l.last_message_at > l.listener_seen_at) AS has_new
          FROM letters l JOIN profiles ap ON ap.user_id = l.author_id
          WHERE l.listener_id = $1
-         ORDER BY l.last_message_at DESC LIMIT 30`,
-        [req.userId],
+         ORDER BY l.last_message_at DESC, l.id LIMIT $2`,
+        [req.userId, limits.assigned + 1],
       );
       // Ochiq xatlar — faqat tasdiqlangan dardkashga va unga mos (til,
       // dardini aytuvchining jins afzalligi) bo'lganlari.
@@ -285,14 +294,19 @@ export function createLettersRouter() {
            AND au.banned_at IS NULL
            AND ap.languages && mp.languages
            AND (ap.preferred_listener_gender = 'any' OR ap.preferred_listener_gender = mp.gender)
-         ORDER BY l.created_at ASC LIMIT 30`,
-        [req.userId],
+         ORDER BY l.created_at ASC, l.id LIMIT $2`,
+        [req.userId, limits.open + 1],
       );
       res.json({
         status: "ok",
-        mine: mine.rows,
-        assigned: assigned.rows,
-        open: open.rows,
+        mine: mine.rows.slice(0, limits.mine),
+        assigned: assigned.rows.slice(0, limits.assigned),
+        open: open.rows.slice(0, limits.open),
+        hasMore: {
+          mine: mine.rows.length > limits.mine,
+          assigned: assigned.rows.length > limits.assigned,
+          open: open.rows.length > limits.open,
+        },
       });
     } catch (err) {
       console.error("Xatlarni olishda xato:", err);

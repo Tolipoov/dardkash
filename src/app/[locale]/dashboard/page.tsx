@@ -4,6 +4,7 @@ import { track } from "@/lib/analytics";
 import PushPrompt from "@/components/call/PushPrompt";
 import SpeakerMiniProfile from "@/components/profile/SpeakerMiniProfile";
 import Avatar from "@/components/ui/Avatar";
+import ShowMoreButton from "@/components/ui/ShowMoreButton";
 import ListenerCard, {
   type ListenerSummary,
 } from "@/components/dashboard/ListenerCard";
@@ -84,8 +85,6 @@ const DASHBOARD_TABS = ["listeners", "invites", "history", "impact"] as const;
 type DashboardTab = (typeof DASHBOARD_TABS)[number];
 
 const LISTENERS_PAGE = 9;
-const SHOW_MORE_CLASS =
-  "rounded-full border border-kul/20 bg-white/60 px-5 py-2.5 text-sm font-semibold text-kul transition-colors hover:border-barg/60 hover:text-barg disabled:opacity-60";
 
 export default function DashboardPage() {
   const t = useTranslations("dashboard");
@@ -1092,15 +1091,10 @@ export default function DashboardPage() {
           </div>
         )}
         {visibleListeners.length > listenersShown && (
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={() => setListenersShown((n) => n + LISTENERS_PAGE)}
-              className={SHOW_MORE_CLASS}
-            >
-              {t("showMore", { count: visibleListeners.length - listenersShown })}
-            </button>
-          </div>
+          <ShowMoreButton
+            onClick={() => setListenersShown((n) => n + LISTENERS_PAGE)}
+            label={t("showMore", { count: visibleListeners.length - listenersShown })}
+          />
         )}
             </>
           )}
@@ -1242,16 +1236,11 @@ export default function DashboardPage() {
           </ul>
         )}
         {historyHasMore && (
-          <div className="mt-6 text-center">
-            <button
-              type="button"
-              onClick={loadMoreHistory}
-              disabled={historyLoadingMore}
-              className={SHOW_MORE_CLASS}
-            >
-              {historyLoadingMore ? "…" : t("showMoreHistory")}
-            </button>
-          </div>
+          <ShowMoreButton
+            onClick={loadMoreHistory}
+            loading={historyLoadingMore}
+            label={t("showMoreHistory")}
+          />
         )}
             </>
           )}
