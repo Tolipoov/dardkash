@@ -19,6 +19,20 @@ const nextConfig = {
   // (.env'da, masalan http://localhost:4000) berilgan bo'lsa, shu manzilga
   // qayta yo'naltiramiz — production'da (nginx bor joyda) bu o'zgaruvchi
   // bo'sh qoladi va rewrite hech narsaga ta'sir qilmaydi.
+  // public/ fayllari standart bo'yicha `max-age=0` bilan berilardi — logo,
+  // hero rasmi va ikonkalar har sahifada qayta tekshirilardi. Fayl nomlarida
+  // hash yo'q (almashtirilsa nomi o'zgarmaydi), shuning uchun bir yil emas,
+  // bir kun + fonda yangilash. sw.js ataylab ro'yxatda yo'q — brauzer uni
+  // har doim yangi holda olishi kerak.
+  async headers() {
+    const cache = [
+      { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' },
+    ];
+    return ['/images/:path*', '/logo.svg', '/favicon.svg', '/icon-192.png', '/icon-512.png'].map(
+      (source) => ({ source, headers: cache }),
+    );
+  },
+
   async rewrites() {
     const apiOrigin = process.env.NEXT_PUBLIC_API_ORIGIN;
     if (!apiOrigin) return [];

@@ -161,6 +161,32 @@ describe("xatlar", () => {
   });
 });
 
+describe("login", () => {
+  // Telegram widget imzosi — haqiqiy widget kabi bot token bilan.
+  const telegramLogin = (tgId, next) => {
+    const crypto = require("node:crypto");
+    const data = { id: tgId, first_name: "Sinov", auth_date: String(Math.floor(Date.now() / 1000)) };
+    const check = Object.keys(data).sort().map((k) => `${k}=${data[k]}`).join("\n");
+    const secret = crypto.createHash("sha256").update("test-token").digest();
+    data.hash = crypto.createHmac("sha256", secret).update(check).digest("hex");
+    const qs = new URLSearchParams({ ...data, ...(next ? { next } : {}) });
+    return fetch(`${env.base}/api/auth/telegram/callback?${qs}`, { redirect: "manual" });
+  };
+
+  it("profilsiz foydalanuvchi kabinet emas, to'g'ridan-to'g'ri formaga boradi", async () => {
+    let res = await telegramLogin("900300", "/ru/dashboard");
+    assert.equal(res.headers.get("location"), "http://localhost:3999/ru/onboarding");
+    res = await telegramLogin("900301", "/onboarding?role=listener");
+    assert.equal(res.headers.get("location"), "http://localhost:3999/onboarding?role=listener");
+  });
+
+  it("profili bor foydalanuvchi so'ralgan sahifaga boradi", async () => {
+    await createUser(env, { telegramId: "900302" });
+    const res = await telegramLogin("900302", "/dashboard");
+    assert.equal(res.headers.get("location"), "http://localhost:3999/dashboard");
+  });
+});
+
 describe("Telegram", () => {
   it("boshqa hisobga bog'langan Telegram tasdiq bilan ko'chiriladi", async () => {
     const old = await createUser(env, { telegramOnly: true, telegramId: "900100", listener: true, nickname: "EskiTg" });

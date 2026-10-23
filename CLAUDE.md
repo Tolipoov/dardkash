@@ -961,3 +961,13 @@ sinaganda topiladigan" xatolarga misol.
     ma'lumotiga shaxsiy narsa (taxallus, matn, ID) qo'yilmaydi.**
     **Ochiq:** zaxira nusxani serverdan tashqariga chiqarish — bazada shaxsiy
     ma'lumot bor, shifrlash va manzil bo'yicha foydalanuvchi qarori kerak.
+85. **[✅ TUZATILDI] Login'dan keyin kabinet bir lahza ko'rinib, formaga
+    sakrardi** (2026-10-23). Google/Telegram callback endi profil yo'qligini
+    o'zi tekshiradi (`postLoginRedirect()`, `index.ts`) va to'g'ridan-to'g'ri
+    `/onboarding`ga yuboradi (til prefiksi va `?role=` saqlanadi). Kabinet
+    yuklanayotganda "Salom, ..." matni o'rniga matnsiz skelet.
+    **Tezlik auditi:** server javobi 0.08–0.13s, HTML/JS gzip, `_next/static`
+    bir yilga keshlanadi; sekin 3G'da ommaviy sahifalar ~2s, FCP ~1.3s.
+    Yagona topilgan kamchilik — `public/` fayllari `max-age=0` edi; endi
+    `next.config.mjs` `headers()` bilan 1 kun + `stale-while-revalidate`
+    (`sw.js` ataylab tashqarida).

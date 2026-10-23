@@ -637,10 +637,24 @@ export default function DashboardPage() {
   ];
 
   if (loading) {
+    // Matnsiz skelet: avval "Salom, ..." chiqib turardi — profilsiz
+    // foydalanuvchi /onboarding'ga o'tishidan oldin kabinet bir lahza
+    // ko'rinib qolardi.
     return (
-      <div className="px-6 py-20 text-center text-kul/50">
-        {t("greeting", { name: "..." })}
-      </div>
+      <section className="bg-sahar px-6 py-14" aria-busy="true">
+        <div className="mx-auto max-w-6xl animate-pulse">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="h-8 w-56 rounded-lg bg-kul/10" />
+            <div className="h-11 w-48 rounded-full bg-kul/10" />
+          </div>
+          <div className="mt-10 h-10 w-full max-w-md rounded-full bg-kul/10" />
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-40 rounded-2xl bg-kul/10" />
+            ))}
+          </div>
+        </div>
+      </section>
     );
   }
 

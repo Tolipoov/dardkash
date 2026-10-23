@@ -144,6 +144,18 @@ function safeNext(value: unknown): string {
   return value;
 }
 
+// Login'dan keyin qayerga: profili yo'q (yangi) odam — darhol ro'yxatdan
+// o'tish formasiga (til prefiksi va tanlangan rol saqlanadi). Avval u
+// /dashboard'ga tushib, kabinet bir lahza ko'rinib, keyin formaga sakrardi.
+async function postLoginRedirect(userId: string, next: string): Promise<string> {
+  const profile = await pool.query("SELECT 1 FROM profiles WHERE user_id = $1", [userId]);
+  if (profile.rows.length > 0) return next;
+  if (/^\/(ru\/)?onboarding(\?|$)/.test(next)) return next;
+  const prefix = next.startsWith("/ru/") || next === "/ru" ? "/ru" : "";
+  const role = next.match(/[?&]role=(speaker|listener|both)\b/)?.[1];
+  return `${prefix}/onboarding${role ? `?role=${role}` : ""}`;
+}
+
 app.get("/api/auth/google/start", authLimiter, (req, res) => {
   const state = crypto.randomBytes(16).toString("hex");
   res.cookie("google_oauth_state", state, {
@@ -198,7 +210,7 @@ app.get("/api/auth/google/callback", authLimiter, async (req, res) => {
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
-    const redirectTo = safeNext(req.cookies?.post_login_redirect);
+    const redirectTo = await postLoginRedirect(userId, safeNext(req.cookies?.post_login_redirect));
     res.clearCookie("post_login_redirect");
     res.redirect(`${process.env.APP_BASE_URL}${redirectTo}`);
   } catch (err) {
@@ -234,7 +246,10 @@ app.get("/api/auth/telegram/callback", authLimiter, async (req, res) => {
     // Telegram widget `next`ni to'g'ridan-to'g'ri callback URL'ida
     // qaytaradi (Google'dagi kabi cookie orqali emas) — avval bu e'tiborsiz
     // qolib, "Dardkash bo'lish" orqali kirgan har kim /dashboard'ga tushardi.
-    const redirectTo = safeNext(nextParam ?? req.cookies?.post_login_redirect);
+    const redirectTo = await postLoginRedirect(
+      userId,
+      safeNext(nextParam ?? req.cookies?.post_login_redirect),
+    );
     res.clearCookie("post_login_redirect");
     res.redirect(`${process.env.APP_BASE_URL}${redirectTo}`);
   } catch (err) {
