@@ -60,15 +60,17 @@ export default function PushPrompt({ variant }: { variant: "card" | "settings" }
   if (!state || state === "unsupported") return null;
 
   if (variant === "card") {
-    if (state === "on" || dismissed) return null;
+    // Brauzerda bloklangan bo'lsa kabinetda katta kartochka foydasiz —
+    // yo'riqnoma profil tahrirlashdagi `settings` bo'limida qoladi.
+    if (state === "on" || state === "denied" || dismissed) return null;
     return (
-      <div className="mt-8 flex flex-col gap-3 rounded-2xl border border-barg/30 bg-barg/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-barg/30 bg-barg/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-3">
           <Bell className="mt-0.5 shrink-0 text-barg" size={20} aria-hidden />
           <div>
             <p className="font-semibold text-kul">{t("title")}</p>
             <p className="mt-1 text-sm text-kul/70">
-              {state === "ios-install" ? t("iosHint") : state === "denied" ? t("deniedHint") : t("body")}
+              {state === "ios-install" ? t("iosHint") : t("body")}
             </p>
           </div>
         </div>

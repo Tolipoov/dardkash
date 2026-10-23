@@ -1,5 +1,6 @@
 "use client";
 
+import { formatShortDate } from "@/lib/dates";
 import SpeakerMiniProfile from "@/components/profile/SpeakerMiniProfile";
 import { useSessionChat } from "@/components/session/useSessionChat";
 import Avatar from "@/components/ui/Avatar";
@@ -7,7 +8,7 @@ import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { Link, useRouter } from "@/i18n/navigation";
 import { SendHorizontal } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -27,7 +28,6 @@ interface SessionInfo {
 // (useSessionChat, /api/ws/chat).
 export default function ConversationPage() {
   const t = useTranslations("messages");
-  const locale = useLocale();
   const router = useRouter();
   const toast = useToast();
   const sessionId = useParams().id as string;
@@ -101,13 +101,6 @@ export default function ConversationPage() {
     ended: "statusEnded",
     cancelled: "statusCancelled",
   } as const;
-  const timeFormat = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
-    day: "numeric",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
   function submit() {
     if (send(input)) setInput("");
   }
@@ -211,7 +204,7 @@ export default function ConversationPage() {
                 >
                   <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{m.content}</p>
                   <p className={`mt-1 text-[11px] ${mine ? "text-sahar/70" : "text-kul/45"}`}>
-                    {timeFormat.format(new Date(m.created_at))}
+                    {formatShortDate(m.created_at)}
                   </p>
                 </div>
               </div>

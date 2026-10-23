@@ -21,6 +21,35 @@ export function authHrefFor(role: string | null, locale: string): string {
   return `/auth?next=${encodeURIComponent(`${prefix}/onboarding${query}`)}`;
 }
 
+type ProfileResult = { loggedOut: boolean; profile: ProfileState | null };
+
+// Bosh sahifada hook 5 ta komponentda chaqiriladi — har biri o'zi so'rasa,
+// bitta sahifa ochilishida /api/profile 5 marta ketardi. Bitta umumiy
+// so'rov; qisqa muddat (kirish/chiqishdan keyin eski holat qolib ketmasin).
+const SHARED_TTL_MS = 5000;
+let shared: { at: number; promise: Promise<ProfileResult> } | null = null;
+
+function loadProfileOnce(): Promise<ProfileResult> {
+  if (shared && Date.now() - shared.at < SHARED_TTL_MS) return shared.promise;
+  const promise = fetch("/api/profile", { credentials: "include" })
+    .then(async (res): Promise<ProfileResult> => {
+      if (res.status === 401) return { loggedOut: true, profile: null };
+      const data = res.ok ? await res.json() : null;
+      const p = data?.profile;
+      if (!p) return { loggedOut: false, profile: null };
+      return {
+        loggedOut: false,
+        profile: {
+          wants: p.wants || null,
+          isComplete: Boolean(p.nickname && p.age_range && p.wants && p.topics?.length),
+        },
+      };
+    })
+    .catch(() => ({ loggedOut: false, profile: null }));
+  shared = { at: Date.now(), promise };
+  return promise;
+}
+
 // Bosh sahifadagi barcha CTA tugmalar (Hero, rol kartalari, "tinglovchi
 // bo'lmoqchimisiz" bloki, pastki CTA) shu bitta hook orqali /api/profile'ni
 // bir marta so'raydi: tizimga kirmagan bo'lsa — to'g'ridan-to'g'ri /auth'ga
@@ -33,25 +62,15 @@ export function useLandingCta() {
   const [loggedOut, setLoggedOut] = useState(false);
 
   useEffect(() => {
-    fetch("/api/profile", { credentials: "include" })
-      .then((res) => {
-        if (res.status === 401) {
-          setLoggedOut(true);
-          return null;
-        }
-        return res.ok ? res.json() : null;
-      })
-      .then((data) => {
-        const p = data?.profile;
-        if (!p) return;
-        setProfile({
-          wants: p.wants || null,
-          isComplete: Boolean(
-            p.nickname && p.age_range && p.wants && p.topics?.length,
-          ),
-        });
-      })
-      .catch(() => {});
+    let cancelled = false;
+    loadProfileOnce().then((r) => {
+      if (cancelled) return;
+      if (r.loggedOut) setLoggedOut(true);
+      if (r.profile) setProfile(r.profile);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function hrefFor(role: Role): string {

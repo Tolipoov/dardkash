@@ -989,3 +989,21 @@ sinaganda topiladigan" xatolarga misol.
     kelib tartib o'zgarsa ham takror/tushib qolish yo'q. Umumiy tugma:
     `components/ui/ShowMoreButton.tsx` (kabinet ham shuni ishlatadi).
     `/api/unread` hisobi avvalgidek 60 kunlik.
+88. **[✅ TUZATILDI] Foydalanuvchi ko'zi bilan UI ko'rigi (2026-10-23).** 390px'da
+    barcha rollar bilan aylanib chiqilib topilganlar:
+    - Dardkash kabinetida kelgan taklif 4 ta banner ostida qolardi — endi
+      shoshilinchlar (takliflar, suhbatlar, navbat) tepada, eslatmalar
+      (xush kelibsiz, xatlar, push, Telegram) ulardan keyin. Taklif
+      tugmalari: "Qabul qilish/Rad etish" ikki ustunda, "Javob yozish" va
+      "Shikoyat" ostida matnli havola.
+    - `ListenerCard` telefonda ixcham (`p-4`, mavzulardan 3 tasi + "+N");
+      suhbatlar soni holat qatorida, "Yangi dardkash"da ko'rsatilmaydi.
+    - Kabinet tablari telefonda o'ng chetda soya (surish mumkinligi belgisi).
+    - Sanalar: `src/lib/dates.ts` `formatShortDate()` → "21.10, 12:42"
+      (uz-UZ "10-21 12:42" berardi va sinardi). Kabinet, xabarlar, xatlar, admin.
+    - Tillar nomi bilan (`languageNames` namespace, `src/lib/languages.ts`).
+    - Admin navbatida `Avatar` (API `p.avatar` qaytaradi), telefon bo'lmasa
+      qator chiqmaydi.
+    - Push kartochkasi brauzer bloklagan bo'lsa kabinetda chiqmaydi.
+    - Bosh sahifada `/api/profile` 5 marta so'ralardi — `useLandingCta`
+      endi umumiy so'rov (5 soniyalik modul keshi).

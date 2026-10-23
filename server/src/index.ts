@@ -1092,6 +1092,7 @@ app.get(
       SELECT
         u.id AS user_id,
         p.nickname,
+        p.avatar,
         p.phone,
         lp.bio,
         COALESCE(array_agg(pt.topic_code) FILTER (WHERE pt.topic_code IS NOT NULL), '{}') AS topics
@@ -1100,7 +1101,7 @@ app.get(
       JOIN users u ON u.id = lp.user_id
       LEFT JOIN listener_topics pt ON pt.user_id = lp.user_id
       WHERE lp.status = 'pending'
-      GROUP BY u.id, p.nickname, p.phone, lp.bio, lp.created_at
+      GROUP BY u.id, p.nickname, p.avatar, p.phone, lp.bio, lp.created_at
       ORDER BY lp.created_at ASC
     `);
       res.json({ status: "ok", pending: result.rows });

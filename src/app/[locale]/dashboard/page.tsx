@@ -1,5 +1,6 @@
 "use client";
 
+import { formatShortDate } from "@/lib/dates";
 import { track } from "@/lib/analytics";
 import PushPrompt from "@/components/call/PushPrompt";
 import SpeakerMiniProfile from "@/components/profile/SpeakerMiniProfile";
@@ -16,7 +17,7 @@ import { formatHour } from "@/lib/availability";
 import { openTelegramLink } from "@/lib/telegramLink";
 import { Heart } from "lucide-react";
 import { MOOD_AFTER_EMOJI, MOOD_BEFORE_EMOJI } from "@/lib/mood";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 const bold = (chunks: ReactNode) => <b>{chunks}</b>;
@@ -91,7 +92,6 @@ export default function DashboardPage() {
   const tTopics = useTranslations("topics");
   const tDaysLong = useTranslations("daysLong");
   const tLetters = useTranslations("letters");
-  const locale = useLocale();
   const router = useRouter();
   const toast = useToast();
 
@@ -727,79 +727,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {me?.listener_welcome && (
-          <div className="mt-8 rounded-2xl border border-barg/30 bg-barg/10 px-5 py-5">
-            <p className="font-display text-lg text-kul">{t("welcomeTitle")}</p>
-            <p className="mt-1 text-sm text-kul/70">{t("welcomeBody")}</p>
-            <ol className="mt-3 space-y-2 text-sm text-kul">
-              <li>
-                1.{" "}
-                <Link href="/onboarding?edit=1" className="font-semibold text-barg hover:underline">
-                  {t("welcomeStep1")}
-                </Link>
-              </li>
-              <li>
-                2.{" "}
-                <Link href="/guide" className="font-semibold text-barg hover:underline">
-                  {t("welcomeStep2")}
-                </Link>
-              </li>
-              <li>
-                3.{" "}
-                {me.telegram_id ? (
-                  t("welcomeStep3Done")
-                ) : (
-                  <button
-                    type="button"
-                    onClick={connectTelegram}
-                    disabled={linkingTelegram}
-                    className="inline text-left font-semibold text-barg hover:underline"
-                  >
-                    {t("welcomeStep3")}
-                  </button>
-                )}
-              </li>
-            </ol>
-            <Button size="md" className="mt-4" onClick={dismissWelcome}>
-              {t("welcomeDismiss")}
-            </Button>
-          </div>
-        )}
-
-        {(letters.hasNew || (me?.listener_status === "approved" && letters.open > 0)) && (
-          <Link
-            href="/letters"
-            className="mt-6 flex items-center justify-between gap-3 rounded-2xl border border-gisht/20 bg-gisht/5 px-5 py-3 text-sm text-kul hover:bg-gisht/10"
-          >
-            <span>
-              ✉️{" "}
-              {letters.hasNew
-                ? tLetters("dashboardNewReplies")
-                : tLetters("dashboardOpenLetters", { count: letters.open })}
-            </span>
-            <span aria-hidden>→</span>
-          </Link>
-        )}
-
-        <PushPrompt variant="card" />
-
-        {needsTelegram && (
-          <div className="mt-8 flex flex-col gap-4 rounded-2xl border border-yulduz/30 bg-yulduz/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-semibold text-kul">{t("telegramBannerTitle")}</p>
-              <p className="mt-1 text-sm text-kul/70">{t("telegramBannerBody")}</p>
-            </div>
-            <Button
-              size="md"
-              className="shrink-0"
-              onClick={connectTelegram}
-              disabled={linkingTelegram}
-            >
-              {linkingTelegram ? t("telegramConnecting") : t("telegramConnect")}
-            </Button>
-          </div>
-        )}
-
         {incomingInvites.some((inv) => inv.status === "scheduled") && (
           <>
             <h2 className="mt-12 font-display text-xl text-kul">{t("incomingInvitesTitle")}</h2>
@@ -838,34 +765,37 @@ export default function DashboardPage() {
                       )}
                       </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        size="md"
-                        className="flex-1 sm:flex-none"
-                        onClick={() => respondToInvite(inv.id, true)}
-                      >
-                        {t("incomingCallAccept")}
-                      </Button>
-                      <Button
-                        size="md"
-                        variant="secondary"
-                        className="flex-1 sm:flex-none"
-                        onClick={() => respondToInvite(inv.id, false)}
-                      >
-                        {t("incomingCallDecline")}
-                      </Button>
+                    <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+                      <div className="grid grid-cols-2 gap-2 sm:flex">
+                        <Button
+                          size="md"
+                          className="whitespace-nowrap"
+                          onClick={() => respondToInvite(inv.id, true)}
+                        >
+                          {t("incomingCallAccept")}
+                        </Button>
+                        <Button
+                          size="md"
+                          variant="secondary"
+                          className="whitespace-nowrap"
+                          onClick={() => respondToInvite(inv.id, false)}
+                        >
+                          {t("incomingCallDecline")}
+                        </Button>
+                      </div>
                       {inv.invite_message && (
-                        <>
-                          <Link
-                            href={`/messages/${inv.id}`}
-                            className="inline-flex items-center rounded-full px-4 py-2.5 text-sm font-semibold text-barg hover:bg-barg/10"
-                          >
+                        <div className="flex items-center justify-center gap-5 text-sm font-semibold sm:justify-end">
+                          <Link href={`/messages/${inv.id}`} className="text-barg hover:underline">
                             {t("inviteReply")}
                           </Link>
-                          <Button size="md" variant="ghost" onClick={() => reportInvite(inv)}>
+                          <button
+                            type="button"
+                            onClick={() => reportInvite(inv)}
+                            className="text-kul/55 hover:text-gisht hover:underline"
+                          >
                             {t("inviteReport")}
-                          </Button>
-                        </>
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1006,11 +936,90 @@ export default function DashboardPage() {
           </>
         )}
 
+        {/* Eslatmalar (xush kelibsiz, xatlar, push, Telegram) — shoshilinch
+            narsalardan (kelgan taklif, boshlangan suhbat, navbat) KEYIN:
+            avval to'rtta banner taklifni telefonda ikkinchi ekranga surardi. */}
+        {me?.listener_welcome && (
+          <div className="mt-8 rounded-2xl border border-barg/30 bg-barg/10 px-5 py-5">
+            <p className="font-display text-lg text-kul">{t("welcomeTitle")}</p>
+            <p className="mt-1 text-sm text-kul/70">{t("welcomeBody")}</p>
+            <ol className="mt-3 space-y-2 text-sm text-kul">
+              <li>
+                1.{" "}
+                <Link href="/onboarding?edit=1" className="font-semibold text-barg hover:underline">
+                  {t("welcomeStep1")}
+                </Link>
+              </li>
+              <li>
+                2.{" "}
+                <Link href="/guide" className="font-semibold text-barg hover:underline">
+                  {t("welcomeStep2")}
+                </Link>
+              </li>
+              <li>
+                3.{" "}
+                {me.telegram_id ? (
+                  t("welcomeStep3Done")
+                ) : (
+                  <button
+                    type="button"
+                    onClick={connectTelegram}
+                    disabled={linkingTelegram}
+                    className="inline text-left font-semibold text-barg hover:underline"
+                  >
+                    {t("welcomeStep3")}
+                  </button>
+                )}
+              </li>
+            </ol>
+            <Button size="md" className="mt-4" onClick={dismissWelcome}>
+              {t("welcomeDismiss")}
+            </Button>
+          </div>
+        )}
+
+        {(letters.hasNew || (me?.listener_status === "approved" && letters.open > 0)) && (
+          <Link
+            href="/letters"
+            className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-gisht/20 bg-gisht/5 px-5 py-3 text-sm text-kul hover:bg-gisht/10"
+          >
+            <span>
+              ✉️{" "}
+              {letters.hasNew
+                ? tLetters("dashboardNewReplies")
+                : tLetters("dashboardOpenLetters", { count: letters.open })}
+            </span>
+            <span aria-hidden>→</span>
+          </Link>
+        )}
+
+        <PushPrompt variant="card" />
+
+        {needsTelegram && (
+          <div className="mt-4 flex flex-col gap-4 rounded-2xl border border-yulduz/30 bg-yulduz/5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-semibold text-kul">{t("telegramBannerTitle")}</p>
+              <p className="mt-1 text-sm text-kul/70">{t("telegramBannerBody")}</p>
+            </div>
+            <Button
+              size="md"
+              className="shrink-0"
+              onClick={connectTelegram}
+              disabled={linkingTelegram}
+            >
+              {linkingTelegram ? t("telegramConnecting") : t("telegramConnect")}
+            </Button>
+          </div>
+        )}
+
         {/* Ikkinchi darajali bo'limlar — tablar (avval hammasi ketma-ket
             tizilib, kabinet chalkash ko'rinardi). */}
+        {/* Telefonda tablar sig'maydi — o'ng chetdagi soya yonga surish
+            mumkinligini bildiradi. */}
+        <div className="relative mt-12">
         <div
           role="tablist"
-          className="mt-12 flex gap-1 overflow-x-auto border-b border-kul/10 [scrollbar-width:none]"
+          className="flex gap-1 overflow-x-auto border-b border-kul/10 pr-6 [scrollbar-width:none] sm:pr-0"
         >
           {tabs.map(([value, label, count]) => (
             <button
@@ -1019,7 +1028,7 @@ export default function DashboardPage() {
               role="tab"
               aria-selected={tab === value}
               onClick={() => selectTab(value)}
-              className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
+              className={`-mb-px flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-3 text-sm font-semibold transition-colors sm:px-4 ${
                 tab === value
                   ? "border-barg text-kul"
                   : "border-transparent text-kul/55 hover:text-kul"
@@ -1037,6 +1046,12 @@ export default function DashboardPage() {
               )}
             </button>
           ))}
+        </div>
+
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-sahar sm:hidden"
+          />
         </div>
 
         <div role="tabpanel" className="mt-6">
@@ -1192,12 +1207,7 @@ export default function DashboardPage() {
                     <p className="mt-0.5 text-xs text-kul/55">
                       {s.my_role === "listener" ? t("recentYouListened") : t("recentYouTalked")}
                       {" · "}
-                      {new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
-                        day: "numeric",
-                        month: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      }).format(new Date(s.started_at))}
+                      <span className="whitespace-nowrap">{formatShortDate(s.started_at)}</span>
                     </p>
                   </div>
                   {/* 4 soatdan uzun bo'lsa — bu tab yopilib "osilib qolgan"

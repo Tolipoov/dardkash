@@ -1,12 +1,13 @@
 "use client";
 
+import { formatShortDate } from "@/lib/dates";
 import { track } from "@/lib/analytics";
 import { NOTIFY_EVENT } from "@/components/call/CallNotifier";
 import Button from "@/components/ui/Button";
 import ShowMoreButton from "@/components/ui/ShowMoreButton";
 import { useToast } from "@/components/ui/Toast";
 import { Link, useRouter } from "@/i18n/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 const MAX_LENGTH = 2000;
@@ -37,7 +38,6 @@ type Section = "mine" | "assigned" | "open";
 export default function LettersPage() {
   const t = useTranslations("letters");
   const tTopics = useTranslations("topics");
-  const locale = useLocale();
   const router = useRouter();
   const toast = useToast();
   const [loaded, setLoaded] = useState(false);
@@ -123,7 +123,7 @@ export default function LettersPage() {
             : data.code === "no_profile"
               ? t("errorNoProfile")
               : data.code === "letters_blocked"
-                ? t("errorBlocked", { date: dateFormat.format(new Date(data.until)) })
+                ? t("errorBlocked", { date: formatShortDate(data.until) })
                 : t("error"),
           "error",
         );
@@ -178,13 +178,6 @@ export default function LettersPage() {
     }
   }
 
-  const dateFormat = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
-    day: "numeric",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
   function statusLabel(letter: LetterSummary) {
     if (letter.status === "pending" || letter.status === "hidden") return t("statusPending");
     if (letter.status === "removed") return t("statusRemoved");
@@ -206,7 +199,7 @@ export default function LettersPage() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm text-kul">{letter.preview}</p>
                 <p className="mt-1 text-xs text-kul/55">
-                  {statusLabel(letter)} · {dateFormat.format(new Date(letter.last_message_at))}
+                  {statusLabel(letter)} · {formatShortDate(letter.last_message_at)}
                 </p>
               </div>
               {letter.has_new && ["taken", "open"].includes(letter.status) && (
@@ -259,7 +252,7 @@ export default function LettersPage() {
                 <div key={letter.id} className="rounded-2xl border border-barg/30 bg-barg/5 p-5">
                   <p className="text-xs text-kul/55">
                     {t("from", { name: letter.author_nickname })} ·{" "}
-                    {dateFormat.format(new Date(letter.created_at))}
+                    {formatShortDate(letter.created_at)}
                   </p>
                   {letter.topics.length > 0 && (
                     <p className="mt-1 text-xs text-kul/70">

@@ -8,6 +8,7 @@ import { Link, useRouter } from "@/i18n/navigation";
 import { formatDays, formatHour } from "@/lib/availability";
 import { listenerBadge } from "@/lib/listenerBadge";
 import { Heart, MessageCircle } from "lucide-react";
+import { languageNames } from "@/lib/languages";
 import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -37,6 +38,7 @@ export default function ListenerProfilePage() {
   const t = useTranslations("profile");
   const tDash = useTranslations("dashboard");
   const tTopics = useTranslations("topics");
+  const tLang = useTranslations("languageNames");
   const tDays = useTranslations("days");
   const router = useRouter();
   const toast = useToast();
@@ -231,7 +233,7 @@ export default function ListenerProfilePage() {
               <div>
                 <p className="text-sm font-semibold text-kul/80">{t("languages")}</p>
                 <p className="mt-1 text-sm text-kul/70">
-                  {profile.languages.map((l) => l.toUpperCase()).join(" · ")}
+                  {languageNames(profile.languages, tLang)}
                 </p>
               </div>
             )}

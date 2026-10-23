@@ -1,8 +1,10 @@
 "use client";
 
+import { formatShortDate } from "@/lib/dates";
 import { useCallback, useEffect, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import Avatar from "@/components/ui/Avatar";
 import Button from "@/components/ui/Button";
 import TopicTag from "@/components/ui/TopicTag";
 import { useToast } from "@/components/ui/Toast";
@@ -10,7 +12,8 @@ import { useToast } from "@/components/ui/Toast";
 interface PendingListener {
   user_id: string;
   nickname: string;
-  phone: string;
+  avatar: string | null;
+  phone: string | null;
   bio: string;
   topics: string[];
 }
@@ -41,7 +44,6 @@ const REASON_KEYS = {
 export default function ModerationPage() {
   const t = useTranslations("admin");
   const tSession = useTranslations("session");
-  const locale = useLocale();
   const tTopics = useTranslations("topics");
   const toast = useToast();
   const router = useRouter();
@@ -161,12 +163,7 @@ export default function ModerationPage() {
   }
 
   const formatDate = (value: string) =>
-    new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
-      day: "numeric",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(value));
+    formatShortDate(value);
 
   if (loading) {
     return <p className="px-6 py-20 text-center text-kul/50">{t("queueTitle")}...</p>;
@@ -183,9 +180,9 @@ export default function ModerationPage() {
           <div className="mt-8 space-y-5">
             {queue.map((item) => (
               <div key={item.user_id} className="rounded-wave border border-kul/10 bg-white/70 p-6">
-                <div className="flex gap-5">
-                  <div className="h-20 w-20 flex-shrink-0 rounded-2xl bg-kul/10" title={t("photo")} />
-                  <div className="flex-1">
+                <div className="flex gap-4 sm:gap-5">
+                  <Avatar code={item.avatar} nickname={item.nickname} size={56} />
+                  <div className="min-w-0 flex-1">
                     <h3 className="font-display text-lg text-kul">{item.nickname}</h3>
                     <p className="mt-1 text-sm text-kul/70">{item.bio}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
@@ -193,9 +190,11 @@ export default function ModerationPage() {
                         <TopicTag key={code} label={tTopics(code as any)} />
                       ))}
                     </div>
-                    <p className="mt-2 text-xs text-kul/40">
-                      {t("phoneAdminOnly")}: {item.phone}
-                    </p>
+                    {item.phone && (
+                      <p className="mt-2 text-xs text-kul/40">
+                        {t("phoneAdminOnly")}: {item.phone}
+                      </p>
+                    )}
                   </div>
                 </div>
 

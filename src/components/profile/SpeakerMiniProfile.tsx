@@ -3,6 +3,7 @@
 import Avatar from "@/components/ui/Avatar";
 import Button from "@/components/ui/Button";
 import TopicTag from "@/components/ui/TopicTag";
+import { languageNames } from "@/lib/languages";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
@@ -26,6 +27,7 @@ export default function SpeakerMiniProfile({
 }) {
   const t = useTranslations("profile");
   const tTopics = useTranslations("topics");
+  const tLang = useTranslations("languageNames");
   const [profile, setProfile] = useState<MiniProfile | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -66,7 +68,7 @@ export default function SpeakerMiniProfile({
                 <p className="text-xs text-kul/55">
                   {t("ageRange", { range: profile.age_range })}
                   {profile.languages.length > 0 &&
-                    ` · ${profile.languages.map((l) => l.toUpperCase()).join(" · ")}`}
+                    ` · ${languageNames(profile.languages, tLang)}`}
                 </p>
               </div>
             </div>

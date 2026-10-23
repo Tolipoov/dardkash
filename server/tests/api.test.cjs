@@ -250,6 +250,19 @@ describe("login", () => {
   });
 });
 
+describe("moderatsiya", () => {
+  it("arizalar navbati avatarni beradi, telefon bo'lmasa null", async () => {
+    const applicant = await createUser(env, { listener: "pending", nickname: "Navbatdagi" });
+    await env.q("UPDATE profiles SET avatar = 'leaf' WHERE user_id = $1", [applicant]);
+    const admin = await createUser(env, { role: "admin", nickname: "Admin2" });
+    const res = await env.api(admin, "GET", "/api/admin/listeners/pending");
+    assert.equal(res.status, 200);
+    const row = res.body.pending.find((p) => p.user_id === applicant);
+    assert.equal(row.avatar, "leaf");
+    assert.equal(row.phone, null);
+  });
+});
+
 describe("Telegram", () => {
   it("boshqa hisobga bog'langan Telegram tasdiq bilan ko'chiriladi", async () => {
     const old = await createUser(env, { telegramOnly: true, telegramId: "900100", listener: true, nickname: "EskiTg" });

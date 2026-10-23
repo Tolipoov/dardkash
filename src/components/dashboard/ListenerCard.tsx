@@ -20,6 +20,8 @@ export interface ListenerSummary {
   avatar: string | null;
 }
 
+const MOBILE_TOPICS = 3;
+
 export default function ListenerCard({
   listener,
   onStart,
@@ -39,9 +41,12 @@ export default function ListenerCard({
   const tDays = useTranslations("days");
   const { availability } = listener;
   const badge = listenerBadge(listener.sessionsCount, listener.rating);
+  // Telefonda kartochka butun kenglikda — mavzular ko'p bo'lsa juda baland
+  // bo'lib ketardi; u yerda 3 tasi + "+N", kattaroq ekranda hammasi.
+  const extraTopics = Math.max(0, listener.topics.length - MOBILE_TOPICS);
 
   return (
-    <div className="flex flex-col justify-between rounded-wave border border-kul/10 bg-white/70 p-6">
+    <div className="flex flex-col justify-between rounded-wave border border-kul/10 bg-white/70 p-4 sm:p-6">
       <div>
         <div className="flex items-center justify-between">
           {/* Taxallus va avatar — profil sahifasiga havola. Onlayn holati —
@@ -81,8 +86,15 @@ export default function ListenerCard({
           </div>
         </div>
 
-        <p className="mt-1 flex items-center gap-2 text-xs text-kul/40">
+        {/* "Yangi dardkash" belgisi bor bo'lsa "0 ta suhbat" takror bo'lardi. */}
+        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-kul/40">
           {listener.online ? t("online") : t("offline")}
+          {badge !== "new" && (
+            <>
+              <span aria-hidden>·</span>
+              {t("sessionsCount", { count: listener.sessionsCount })}
+            </>
+          )}
           {badge && (
             <span
               className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
@@ -103,17 +115,21 @@ export default function ListenerCard({
         )}
 
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {listener.topics.map((code) => (
-            <TopicTag key={code} label={tTopics(code)} />
+          {listener.topics.map((code, i) => (
+            <span key={code} className={i >= MOBILE_TOPICS ? "hidden sm:contents" : "contents"}>
+              <TopicTag label={tTopics(code)} />
+            </span>
           ))}
+          {extraTopics > 0 && (
+            <span className="inline-flex items-center rounded-full px-2 py-1.5 text-sm text-kul/50 sm:hidden">
+              +{extraTopics}
+            </span>
+          )}
         </div>
-        <p className="mt-3 text-sm text-kul/50">
-          {t("sessionsCount", { count: listener.sessionsCount })}
-        </p>
       </div>
 
       {/* Asosiy amal (qo'ng'iroq yoki taklif) va qo'ng'iroqsiz xabar — bir qatorda. */}
-      <div className="mt-5 flex gap-2">
+      <div className="mt-4 flex gap-2 sm:mt-5">
         {listener.online ? (
           <Button className="flex-1" onClick={() => onStart(listener.id)}>
             {t("startSession")}

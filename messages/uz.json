@@ -476,7 +476,6 @@
   "admin": {
     "queueTitle": "Moderatsiya navbati",
     "queueEmpty": "Hozircha ko'rib chiqiladigan ariza yo'q",
-    "photo": "Profil rasmi",
     "bio": "Bio",
     "topics": "Mavzular",
     "approve": "Tasdiqlash",
@@ -668,5 +667,9 @@
     "error": "Bildirishnomalarni yoqib bo'lmadi",
     "settingsTitle": "Brauzer bildirishnomalari",
     "onHint": "Yoqilgan — shu qurilmaga bildirishnomalar keladi."
+  },
+  "languageNames": {
+    "uz": "O'zbekcha",
+    "ru": "Ruscha"
   }
 }

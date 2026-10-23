@@ -1,10 +1,11 @@
 "use client";
 
+import { formatShortDate } from "@/lib/dates";
 import { NOTIFY_EVENT } from "@/components/call/CallNotifier";
 import Avatar from "@/components/ui/Avatar";
 import ShowMoreButton from "@/components/ui/ShowMoreButton";
 import { Link, useRouter } from "@/i18n/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 
 interface Conversation {
@@ -25,7 +26,6 @@ const PAGE = 20;
 // yozishish uchun (GET /api/conversations).
 export default function MessagesPage() {
   const t = useTranslations("messages");
-  const locale = useLocale();
   const router = useRouter();
   const [items, setItems] = useState<Conversation[] | null>(null);
   // Nechtasi so'raladi — "Yana ko'rsatish" oshiradi, yangilanish ham shu sonda.
@@ -63,12 +63,6 @@ export default function MessagesPage() {
     return () => window.removeEventListener(NOTIFY_EVENT, onNotify);
   }, [load]);
 
-  const dateFormat = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
-    day: "numeric",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
   const statusKey = {
     scheduled: "statusScheduled",
     active: "statusActive",
@@ -103,7 +97,7 @@ export default function MessagesPage() {
                     <div className="flex items-baseline justify-between gap-3">
                       <p className="truncate text-sm font-semibold text-kul">{c.partner_nickname}</p>
                       <span className="flex shrink-0 items-center gap-2 text-xs text-kul/45">
-                        {dateFormat.format(new Date(c.last_at))}
+                        {formatShortDate(c.last_at)}
                         {c.unread > 0 && (
                           <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-barg px-1.5 text-[11px] font-bold text-sahar">
                             {c.unread}

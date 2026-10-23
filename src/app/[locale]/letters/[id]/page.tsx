@@ -1,11 +1,12 @@
 "use client";
 
+import { formatShortDate } from "@/lib/dates";
 import { NOTIFY_EVENT, UNREAD_CHANGED_EVENT } from "@/components/call/CallNotifier";
 import ReportModal from "@/components/session/ReportModal";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { Link, useRouter } from "@/i18n/navigation";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
@@ -29,7 +30,6 @@ interface Message {
 
 export default function LetterPage() {
   const t = useTranslations("letters");
-  const locale = useLocale();
   const router = useRouter();
   const toast = useToast();
   const letterId = useParams().id as string;
@@ -125,13 +125,6 @@ export default function LetterPage() {
     role === "author"
       ? ["pending", "open", "taken"].includes(letter.status)
       : letter.status === "taken";
-  const dateFormat = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
-    day: "numeric",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
   return (
     <section className="bg-sahar px-6 py-14">
       <div className="mx-auto max-w-3xl">
@@ -205,7 +198,7 @@ export default function LetterPage() {
                 <p className="text-xs text-kul/50">
                   {mineMessage ? t("you") : m.sender_id === letter.author_id ? letter.author_nickname : letter.listener_nickname}
                   {" · "}
-                  {dateFormat.format(new Date(m.created_at))}
+                  {formatShortDate(m.created_at)}
                 </p>
                 <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-kul/85">
                   {m.body}
