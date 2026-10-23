@@ -1,22 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/Button";
 import TopicTag from "@/components/ui/TopicTag";
 
 export default function FeedbackModal({
   sessionId,
+  listenerId,
   onSubmit,
 }: {
   sessionId: string;
+  // Faqat dardini aytuvchi tomonida — dardkashni saqlash taklifi uchun.
+  listenerId?: string;
   onSubmit: () => void;
 }) {
   const t = useTranslations("session");
   const [listened, setListened] = useState<"yes" | "partial" | "no" | "">("");
   const [mood, setMood] = useState<"worse" | "same" | "better" | "much_better" | "">("");
   const [comment, setComment] = useState("");
+  const [thanks, setThanks] = useState("");
   const [sent, setSent] = useState(false);
+  const [alreadySaved, setAlreadySaved] = useState(true);
+  const [saveListener, setSaveListener] = useState(false);
+
+  useEffect(() => {
+    if (!listenerId) return;
+    fetch("/api/favorites", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setAlreadySaved(Boolean(data?.listenerIds?.includes(listenerId))))
+      .catch(() => {});
+  }, [listenerId]);
 
   async function submit() {
     setSent(true);
@@ -25,8 +39,11 @@ export default function FeedbackModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ listened, mood, comment }),
+        body: JSON.stringify({ listened, mood, comment, thanks: listenerId ? thanks : undefined }),
       });
+      if (listenerId && saveListener) {
+        await fetch(`/api/favorites/${listenerId}`, { method: "POST", credentials: "include" });
+      }
     } catch (err) {
       console.error("Baholashni yuborishda xato:", err);
     }
@@ -64,6 +81,32 @@ export default function FeedbackModal({
               rows={3}
               className="mt-5 w-full rounded-2xl border border-kul/15 bg-white/70 px-4 py-3 text-sm outline-none focus:border-barg"
             />
+
+            {listenerId && (
+              <>
+                <p className="mt-5 text-sm font-medium text-kul/80">{t("feedbackThanksLabel")}</p>
+                <textarea
+                  value={thanks}
+                  onChange={(e) => setThanks(e.target.value)}
+                  placeholder={t("feedbackThanksPlaceholder")}
+                  rows={2}
+                  maxLength={300}
+                  className="mt-2 w-full rounded-2xl border border-kul/15 bg-white/70 px-4 py-3 text-sm outline-none focus:border-barg"
+                />
+              </>
+            )}
+
+            {listenerId && !alreadySaved && (
+              <label className="mt-4 flex items-center gap-2 text-sm text-kul/80">
+                <input
+                  type="checkbox"
+                  checked={saveListener}
+                  onChange={(e) => setSaveListener(e.target.checked)}
+                  className="h-4 w-4 accent-barg"
+                />
+                {t("feedbackSaveListener")}
+              </label>
+            )}
 
             <Button className="mt-5 w-full" disabled={!listened || !mood} onClick={submit}>
               {t("feedbackSubmit")}

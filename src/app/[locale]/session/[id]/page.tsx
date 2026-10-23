@@ -3,6 +3,8 @@
 import ChatPanel from "@/components/session/ChatPanel";
 import ControlBar from "@/components/session/ControlBar";
 import FeedbackModal from "@/components/session/FeedbackModal";
+import MoodCheck from "@/components/session/MoodCheck";
+import Avatar from "@/components/ui/Avatar";
 import ReportModal from "@/components/session/ReportModal";
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -16,7 +18,7 @@ import {
   Track,
 } from "livekit-client";
 import { useTranslations } from "next-intl";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 const bold = (chunks: ReactNode) => <b>{chunks}</b>;
@@ -28,6 +30,9 @@ interface SessionInfo {
   listener_id: string;
   speaker_nickname: string;
   listener_nickname: string;
+  mood_before: number | null;
+  speaker_avatar: string | null;
+  listener_avatar: string | null;
 }
 
 export default function SessionPage() {
@@ -46,7 +51,10 @@ export default function SessionPage() {
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const [loadingInfo, setLoadingInfo] = useState(true);
   const [responding, setResponding] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
+  // Kabinetdagi "Javob yozish" yoki Telegram havolasidan (?chat=1) kelinsa —
+  // yozishma darhol ochiq.
+  const searchParams = useSearchParams();
+  const [chatOpen, setChatOpen] = useState(() => searchParams.get("chat") === "1");
 
   const [connecting, setConnecting] = useState(true);
   const [partnerConnected, setPartnerConnected] = useState(false);
@@ -368,7 +376,13 @@ export default function SessionPage() {
   // shart: avval 3 soniyalik poll suhbat `ended` bo'lganini ko'rishi bilan
   // baholash oynasi o'sha ekran bilan almashib, yo'qolib qolardi.
   if (ended || (wasInCall && sessionInfo.status === "ended")) {
-    return <FeedbackModal sessionId={sessionId} onSubmit={() => router.push("/dashboard")} />;
+    return (
+      <FeedbackModal
+        sessionId={sessionId}
+        listenerId={myUserId === sessionInfo?.speaker_id ? sessionInfo?.listener_id : undefined}
+        onSubmit={() => router.push("/dashboard")}
+      />
+    );
   }
 
   if (sessionInfo.status === "cancelled") {
@@ -424,6 +438,7 @@ export default function SessionPage() {
             <Button variant="ghost" disabled={responding} onClick={cancelCall}>
               {t("cancelCall")}
             </Button>
+            <MoodCheck sessionId={sessionId} answered={sessionInfo.mood_before !== null} />
           </>
         )}
 
@@ -467,10 +482,18 @@ export default function SessionPage() {
         !partnerConnected && (
           <div className="absolute inset-0 flex items-center justify-center text-center text-sahar/40">
             <div>
-              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-sahar/10 font-display text-2xl text-sahar/70">
-                {otherName?.trim().charAt(0).toUpperCase()}
-              </div>
+              <Avatar
+                code={isListenerSide ? sessionInfo.speaker_avatar : sessionInfo.listener_avatar}
+                nickname={otherName || "?"}
+                size={80}
+                className="mx-auto mb-4"
+              />
               <p>{t("waitingForPartner")}</p>
+              {!isListenerSide && (
+                <div className="mt-6 px-6">
+                  <MoodCheck sessionId={sessionId} answered={sessionInfo.mood_before !== null} />
+                </div>
+              )}
             </div>
           </div>
         )

@@ -1,6 +1,7 @@
 import { WebSocketServer, WebSocket, type RawData } from "ws";
 import { verifySession } from "./auth/jwt";
 import { pool } from "./db";
+import { saveChatMessage } from "./session-chat";
 
 // Har bir suhbat (sessionId) uchun, unga ulangan ws-klientlar ro'yxati.
 // Xabar kelganda, shu ro'yxatdagi HAMMASIGA (o'zidan tashqari) yuboriladi.
@@ -81,21 +82,9 @@ export function createChatWebSocketServer() {
         const data = JSON.parse(raw.toString());
         if (typeof data.content !== "string" || !data.content.trim()) return;
         const content = data.content.trim().slice(0, 2000);
-
-        const inserted = await pool.query(
-          `INSERT INTO chat_messages (session_id, sender_id, content)
-           VALUES ($1, $2, $3)
-           RETURNING id, sender_id, content, created_at`,
-          [sessionId, session.userId, content],
-        );
-        const message = inserted.rows[0];
-
-        // Shu xonadagi hamma ishtirokchiga (o'zi ham) yuboramiz — shunda
-        // frontend'da alohida "optimistic update" mantig'i shart emas.
-        const payload = JSON.stringify({ type: "message", message });
-        for (const peer of rooms.get(sessionId) || []) {
-          if (peer.readyState === WebSocket.OPEN) peer.send(payload);
-        }
+        // Saqlash, xonadagilarga yetkazish va oynada bo'lmagan ikkinchi
+        // tomonga bildirishnoma — session-chat.ts'da.
+        await saveChatMessage(sessionId, session.userId, content);
       } catch (err) {
         console.error("Chat WS xabar xatosi:", err);
         if (ws.readyState === WebSocket.OPEN) {
@@ -124,4 +113,20 @@ export function createChatWebSocketServer() {
 
   wss.on("close", () => clearInterval(heartbeat));
   return wss;
+}
+
+// Xonadagi barcha ishtirokchilarga (yuboruvchining o'ziga ham) — shunda
+// frontend'da alohida "optimistic update" mantig'i shart emas.
+export function broadcastChatMessage(sessionId: string, message: object) {
+  const payload = JSON.stringify({ type: "message", message });
+  for (const peer of rooms.get(sessionId) || []) {
+    if (peer.readyState === WebSocket.OPEN) peer.send(payload);
+  }
+}
+
+export function isUserInChatRoom(sessionId: string, userId: string): boolean {
+  for (const peer of rooms.get(sessionId) || []) {
+    if (peer.userId === userId && peer.readyState === WebSocket.OPEN) return true;
+  }
+  return false;
 }

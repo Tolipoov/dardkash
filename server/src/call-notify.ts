@@ -1,5 +1,7 @@
 import { pool } from "./db";
 import { isUserConnected, notifyUser } from "./notify-ws";
+import { pushIfOffline } from "./push";
+import { rememberTelegramMessage } from "./session-chat";
 import { editTelegramMessage, escapeHtml, sendTelegramMessage } from "./telegram/bot";
 
 // Dardkash saytda bo'lsa ham, modalga shu vaqt ichida javob bermasa,
@@ -20,11 +22,25 @@ export async function notifyIncomingCall(opts: {
   sessionId: string;
   speakerName: string;
   kind: CallKind;
+  // Taklif bilan yozilgan ixtiyoriy qisqa xabar.
+  message?: string | null;
 }) {
-  const { listenerId, sessionId, speakerName, kind } = opts;
-  notifyUser(listenerId, { type: kind, sessionId, speakerName });
+  const { listenerId, sessionId, speakerName, kind, message } = opts;
+  notifyUser(listenerId, { type: kind, sessionId, speakerName, message: message ?? null });
 
   if (!isUserConnected(listenerId)) {
+    pushIfOffline(listenerId, {
+      uz: {
+        title: kind === "incoming_call" ? "📞 Qo'ng'iroq" : "💬 Yangi taklif",
+        body: `${speakerName} siz bilan suhbatlashmoqchi${message ? `: «${message.slice(0, 120)}»` : ""}`,
+      },
+      ru: {
+        title: kind === "incoming_call" ? "📞 Звонок" : "💬 Новое приглашение",
+        body: `${speakerName} хочет поговорить с вами${message ? `: «${message.slice(0, 120)}»` : ""}`,
+      },
+      path: message ? `/messages/${sessionId}` : "/dashboard",
+      tag: sessionId,
+    });
     await sendInviteTelegram(opts);
     return;
   }
@@ -47,8 +63,9 @@ async function sendInviteTelegram(opts: {
   sessionId: string;
   speakerName: string;
   kind: CallKind;
+  message?: string | null;
 }) {
-  const { listenerId, sessionId, speakerName, kind } = opts;
+  const { listenerId, sessionId, speakerName, kind, message } = opts;
   const result = await pool.query(
     "SELECT telegram_id FROM users WHERE id = $1",
     [listenerId],
@@ -60,12 +77,20 @@ async function sendInviteTelegram(opts: {
   const messageId = await sendTelegramMessage(
     telegramId,
     `${icon} <b>${escapeHtml(speakerName)}</b> siz bilan suhbatlashishni xohlaydi.\n\n` +
+      (message ? `💬 «${escapeHtml(message)}»\n\n` : "") +
       `Javob berish uchun tugmani bosing yoki saytga kiring: ${process.env.APP_BASE_URL}/dashboard`,
     [
       [
         { text: "✅ Qabul qilish", callback_data: `invite_accept:${sessionId}` },
         { text: "❌ Rad etish", callback_data: `invite_decline:${sessionId}` },
       ],
+      // Xabar tekshirilmasdan keladi — noqulay bo'lsa, shu yerdan shikoyat.
+      ...(message
+        ? [
+            [{ text: "✍️ Javob yozish", callback_data: `chat_reply:${sessionId}` }],
+            [{ text: "🚩 Shikoyat", callback_data: `invite_report:${sessionId}` }],
+          ]
+        : []),
     ],
   );
   if (messageId) {
@@ -73,6 +98,8 @@ async function sendInviteTelegram(opts: {
       "UPDATE sessions SET tg_chat_id = $2, tg_message_id = $3 WHERE id = $1",
       [sessionId, telegramId, messageId],
     );
+    // Taklifga "Reply" qilinsa — javob taklif yozishmasiga tushadi.
+    await rememberTelegramMessage(telegramId, messageId, sessionId, listenerId);
   }
 }
 

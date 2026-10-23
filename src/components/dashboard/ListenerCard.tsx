@@ -1,6 +1,11 @@
+import { Heart, MessageCircle } from "lucide-react";
 import { useTranslations } from "next-intl";
+import Avatar from "@/components/ui/Avatar";
 import Button from "@/components/ui/Button";
+import { Link } from "@/i18n/navigation";
 import TopicTag from "@/components/ui/TopicTag";
+import { formatDays, formatHour, type Availability } from "@/lib/availability";
+import { listenerBadge } from "@/lib/listenerBadge";
 
 export interface ListenerSummary {
   id: string;
@@ -10,41 +15,92 @@ export interface ListenerSummary {
   rating: number;
   sessionsCount: number;
   online: boolean;
+  availability: Availability | null;
+  isFavorite: boolean;
+  avatar: string | null;
 }
 
 export default function ListenerCard({
   listener,
   onStart,
   onInvite,
+  onMessage,
+  onToggleFavorite,
 }: {
   listener: ListenerSummary;
   onStart: (id: string) => void;
   onInvite: (id: string) => void;
+  // Qo'ng'iroqsiz yozishma boshlash (onlayn bo'lsa ham).
+  onMessage: (id: string) => void;
+  onToggleFavorite: (id: string, favorite: boolean) => void;
 }) {
   const t = useTranslations("dashboard");
   const tTopics = useTranslations("topics");
+  const tDays = useTranslations("days");
+  const { availability } = listener;
+  const badge = listenerBadge(listener.sessionsCount, listener.rating);
 
   return (
     <div className="flex flex-col justify-between rounded-wave border border-kul/10 bg-white/70 p-6">
       <div>
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                listener.online ? "bg-barg" : "bg-kul/20"
-              }`}
-              aria-hidden
-            />
-            <h3 className="font-display text-lg text-kul">
+          {/* Taxallus va avatar — profil sahifasiga havola. Onlayn holati —
+              avatar burchagidagi nuqta. */}
+          <Link
+            href={`/listeners/${listener.id}`}
+            className="group flex min-w-0 items-center gap-3"
+          >
+            <span className="relative">
+              <Avatar code={listener.avatar} nickname={listener.nickname} size={44} />
+              <span
+                aria-hidden
+                className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-white ${
+                  listener.online ? "bg-barg" : "bg-kul/25"
+                }`}
+              />
+            </span>
+            <h3 className="truncate font-display text-lg text-kul group-hover:text-barg group-hover:underline">
               {listener.nickname}, {listener.ageRange}
             </h3>
+          </Link>
+          <div className="flex items-center gap-2">
+            {/* Baho yo'q bo'lsa "★ 0.0" ko'rsatilmaydi — yangi dardkash yomon ko'rinmasin. */}
+            {listener.rating > 0 && (
+              <span className="text-sm font-semibold text-yulduz-dim">★ {listener.rating.toFixed(1)}</span>
+            )}
+            <button
+              type="button"
+              onClick={() => onToggleFavorite(listener.id, !listener.isFavorite)}
+              aria-pressed={listener.isFavorite}
+              aria-label={listener.isFavorite ? t("favoriteRemove") : t("favoriteAdd")}
+              title={listener.isFavorite ? t("favoriteRemove") : t("favoriteAdd")}
+              className="rounded-full p-1.5 text-gisht transition-colors hover:bg-gisht/10"
+            >
+              <Heart size={18} fill={listener.isFavorite ? "currentColor" : "none"} />
+            </button>
           </div>
-          <span className="text-sm font-semibold text-yulduz-dim">★ {listener.rating.toFixed(1)}</span>
         </div>
 
-        <p className="mt-1 text-xs text-kul/40">
+        <p className="mt-1 flex items-center gap-2 text-xs text-kul/40">
           {listener.online ? t("online") : t("offline")}
+          {badge && (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                badge === "experienced" ? "bg-yulduz/15 text-yulduz-dim" : "bg-barg/10 text-barg"
+              }`}
+            >
+              {t(badge === "experienced" ? "badgeExperienced" : "badgeNew")}
+            </span>
+          )}
         </p>
+        {availability && (
+          <p className="mt-1 text-xs text-kul/60">
+            {t("usuallyAvailable", {
+              days: formatDays(availability.days, (d) => tDays(String(d)), t("everyDay")),
+              hours: `${formatHour(availability.from)}–${formatHour(availability.to)}`,
+            })}
+          </p>
+        )}
 
         <div className="mt-3 flex flex-wrap gap-1.5">
           {listener.topics.map((code) => (
@@ -56,19 +112,27 @@ export default function ListenerCard({
         </p>
       </div>
 
-      {listener.online ? (
-        <Button className="mt-5 w-full" onClick={() => onStart(listener.id)}>
-          {t("startSession")}
-        </Button>
-      ) : (
-        <Button
-          className="mt-5 w-full"
-          variant="secondary"
-          onClick={() => onInvite(listener.id)}
+      {/* Asosiy amal (qo'ng'iroq yoki taklif) va qo'ng'iroqsiz xabar — bir qatorda. */}
+      <div className="mt-5 flex gap-2">
+        {listener.online ? (
+          <Button className="flex-1" onClick={() => onStart(listener.id)}>
+            {t("startSession")}
+          </Button>
+        ) : (
+          <Button className="flex-1" variant="secondary" onClick={() => onInvite(listener.id)}>
+            {t("sendInvite")}
+          </Button>
+        )}
+        <button
+          type="button"
+          onClick={() => onMessage(listener.id)}
+          title={t("messageAction")}
+          className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border border-barg/40 bg-barg/5 px-4 text-sm font-semibold text-barg transition-colors hover:bg-barg/15"
         >
-          {t("sendInvite")}
-        </Button>
-      )}
+          <MessageCircle size={16} aria-hidden />
+          {t("messageShort")}
+        </button>
+      </div>
     </div>
   );
 }

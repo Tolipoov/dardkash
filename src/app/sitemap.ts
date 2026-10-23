@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { defaultLocale, locales } from "@/i18n/config";
 import { SITE_URL } from "@/lib/site";
 
-const PUBLIC_PATHS = ["", "/terms", "/privacy"];
+const PUBLIC_PATHS = ["", "/guide", "/terms", "/privacy"];
 
 // localePrefix "as-needed": asosiy til prefikssiz, qolganlari prefiks bilan.
 function urlFor(locale: string, path: string): string {

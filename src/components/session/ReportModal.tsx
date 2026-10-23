@@ -7,9 +7,12 @@ import { useToast } from "@/components/ui/Toast";
 
 export default function ReportModal({
   sessionId,
+  endpoint,
   onClose,
 }: {
-  sessionId: string;
+  sessionId?: string;
+  // Suhbatdan boshqa joydan (masalan xatdan) shikoyat qilinganda.
+  endpoint?: string;
   onClose: () => void;
 }) {
   const t = useTranslations("session");
@@ -22,7 +25,7 @@ export default function ReportModal({
   async function submit() {
     setSending(true);
     try {
-      const res = await fetch(`/api/session/${sessionId}/report`, {
+      const res = await fetch(endpoint ?? `/api/session/${sessionId}/report`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

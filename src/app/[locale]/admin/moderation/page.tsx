@@ -163,7 +163,7 @@ export default function ModerationPage() {
   const formatDate = (value: string) =>
     new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "uz-UZ", {
       day: "numeric",
-      month: "short",
+      month: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
     }).format(new Date(value));

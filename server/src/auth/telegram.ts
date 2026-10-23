@@ -47,3 +47,43 @@ export function verifyTelegramAuth(data: TelegramAuthData): boolean {
 
   return true;
 }
+
+// Telegram Mini App (bot ichidagi ilova) `initData`sini tekshiradi.
+// Login Widget'dan farqli algoritm: kalit = HMAC_SHA256("WebAppData", token),
+// hash = HMAC_SHA256(kalit, data_check_string). Telegram keyinroq `signature`
+// maydonini qo'shgan — u data_check_string'ga kiradimi, mijoz versiyasiga
+// bog'liq, shuning uchun ikkala variant ham tekshiriladi (ikkalasi ham bot
+// tokeni bilan imzolangan bo'lishi shart, xavfsizlik pasaymaydi).
+// Qaytadi: Telegram foydalanuvchi ID'si yoki null.
+export function verifyTelegramWebAppData(initData: string): string | null {
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  if (!hash) return null;
+
+  const entries = [...params.entries()].filter(([key]) => key !== "hash");
+  const checkString = (list: [string, string][]) =>
+    list
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, value]) => `${key}=${value}`)
+      .join("\n");
+  const secretKey = crypto.createHmac("sha256", "WebAppData").update(BOT_TOKEN).digest();
+  const hashBuffer = Buffer.from(hash, "hex");
+
+  const matches = (list: [string, string][]) => {
+    const computed = crypto.createHmac("sha256", secretKey).update(checkString(list)).digest();
+    return computed.length === hashBuffer.length && crypto.timingSafeEqual(computed, hashBuffer);
+  };
+  if (!matches([...entries]) && !matches(entries.filter(([key]) => key !== "signature"))) {
+    return null;
+  }
+
+  const authDate = parseInt(params.get("auth_date") || "0", 10);
+  if (Math.floor(Date.now() / 1000) - authDate > 86400) return null;
+
+  try {
+    const user = JSON.parse(params.get("user") || "null");
+    return user?.id ? String(user.id) : null;
+  } catch {
+    return null;
+  }
+}

@@ -661,3 +661,283 @@ sinaganda topiladigan" xatolarga misol.
     `listener_topics`ni o'qiydi.
     **Qolgan:** dashboard'dagi qo'lda tanlanadigan ro'yxat jins afzalligini
     hisobga olmaydi; `ListenerCard`da til/jins ko'rsatilmaydi.
+55. **[✅ TUZATILDI] Emoji taxallus 500 xato berardi (2026-10-22).** Haqiqiy
+    foydalanuvchi "🗿" kiritdi: JS `.length` uni 2 deb sanab o'tkazib yubordi,
+    Postgres `char_length` esa 1 deb `profiles_nickname_check`da rad etdi —
+    foydalanuvchi tushunarsiz "xatolik" ko'rib, profilsiz qoldi. Endi uzunlik
+    ikkala tomonda ham `[...str].length` (belgi bo'yicha) sanaladi.
+    **Qoida: bazadagi `char_length` CHECK'iga mos tekshiruv — doim `[...str].length`.**
+
+### 12-guruh — Odamlarni jalb qilish (2026-10-22)
+
+56. **[✅ QO'SHILDI] Kutish navbati** (`server/src/waitlist.ts`, `008_waitlist.sql`).
+    Onlayn dardkash topilmasa (`/api/session/match` 404), dashboard
+    "Navbatga yozilish"ni taklif qiladi (`POST /api/waitlist`). Mos dardkashlarga
+    (tasdiqlangan, umumiy til, jins afzalligi) saytda `waitlist_new` socket,
+    saytda bo'lmasa Telegram'da "🎧 Suhbatni olish" tugmasi (`wait_take:`,
+    bitta dardkashga 15 daqiqada ko'pi bilan bitta xabar). Birinchi olgan
+    dardkash (`POST /api/waitlist/:id/take`, `FOR UPDATE` — parallel bosishda
+    faqat bittasi) darhol `active` suhbat yaratadi; dardini aytuvchiga
+    `listener_found` modali + Telegram'da havola. Navbat 2 soatda `expired`
+    (sweeper), bloklanganda yoki boshqa yo'l bilan suhbat boshlanganda
+    `cancelled`; hal bo'lgach boshqa dardkashlardagi Telegram tugmalari
+    olib tashlanadi (`waitlist_pings`). Telegram tugmalari endi `url` ham
+    qabul qiladi (`telegram/bot.ts`).
+    **Ehtiyot:** test paytida `pkill -f "<naqsh>"` ishlatmang — serverda
+    boshqa loyihalarning Next.js konteynerlari ham bor; faqat aniq PID.
+57. **[✅ QO'SHILDI] Dardkashning odatiy bo'sh vaqti** (`009_listener_availability.sql`,
+    `server/src/availability.ts`, `src/lib/availability.ts`). Onboarding'ning
+    dardkash qadamida kunlar + soat oralig'i (ixtiyoriy, Toshkent vaqti,
+    `from > to` — tun bo'yi). Kartochkada "Odatda: Du–Ju, 20:00–23:00".
+    Onlayn dardkash topilmaganda navbat taklifida
+    `GET /api/listeners/next-available` asosida "dardkashlar odatda bugun
+    20:00 dan bo'sh bo'ladi". `availability` yuborilmasa saqlangan qiymat
+    o'zgarmaydi, `null` — olib tashlaydi.
+58. **[✅ QO'SHILDI] Bosh sahifada jonli ma'lumot** (`GET /api/public/overview` —
+    login'siz, 30 soniya kesh, IP bo'yicha rate limit). Hero ostida
+    "Hozir N ta dardkash onlayn" yoki "dardkashlar odatda bugun 20:00 dan
+    bo'sh" + tasdiqlangan dardkashlar soni (`LiveStatus.tsx`); "Tinglovchi
+    qanday ko'rinadi" bloki tasdiqlangan dardkashlar bo'lsa 3 ta haqiqiy
+    kartochkaga almashadi (`LiveListenerPreview.tsx`), aks holda namuna.
+    Ochiq API faqat taxallus, mavzular, tillar, reyting, suhbatlar soni,
+    onlayn holati va bo'sh vaqtni beradi (bio, yosh, telefon, ID yo'q).
+59. **[✅ QO'SHILDI] Kayfiyat o'lchovi** (`010_mood_before.sql`, `MoodCheck.tsx`,
+    `src/lib/mood.ts`). Dardini aytuvchi suhbat boshida (qo'ng'iroq kutish
+    ekranida yoki suhbatdosh hali kirmagan paytda) 5 emoji'dan birini
+    tanlaydi — `POST /api/session/:id/mood-before`, ixtiyoriy, bloklamaydi.
+    Keyingi kayfiyat — FeedbackModal'dagi mavjud `mood`. Kabinetda so'nggi
+    suhbatlar qatorida "😕 → 😊" va "N tadan M tasidan keyin yaxshiroq"
+    xulosasi; bosh sahifada kamida 5 ta baho bo'lsa "suhbatdan keyin X%
+    odam o'zini yaxshiroq his qilgan". `/rating` endi noto'g'ri qiymatga
+    500 emas, 400 qaytaradi.
+60. **[✅ QO'SHILDI] Saqlangan dardkashlar** (`011_favorites.sql`,
+    `/api/favorites`). Kartochkada va so'nggi suhbatlar qatorida ♡ tugma,
+    kabinetda "Saqlangan dardkashlaringiz" bo'limi (onlaynlar birinchi),
+    baholash oynasida (dardini aytuvchi tomonida) "Bu dardkashni saqlash".
+    Saqlangan dardkash oflayn → onlayn bo'lganda (`/api/listeners/presence`
+    o'tishni aniqlaydi) saqlagan odamga, agar saytda bo'lsa, `favorite_online`
+    toast'i — bir juftlikka 6 soatda ko'pi bilan bir marta (xotirada).
+61. **[✅ QO'SHILDI] Dardkash rag'batlari** (`012_thanks.sql`). Baholash
+    oynasida dardini aytuvchi dardkashga "rahmat xati" yozadi
+    (`session_ratings.thanks`, ≤300 belgi; avvalgi `comment` dardkashga
+    ko'rinmasdi) — dardkashga saytda `thanks_received` toast'i va Telegram
+    xabari. Dardkash kabinetida "Sizning hissangiz" (`GET /api/listener/impact`:
+    suhbatlar, reyting, nechta odam yengillik his qilgani, rahmat xatlari).
+    Kartochkalarda "Yangi dardkash" (<3 suhbat) / "Tajribali" (≥10 suhbat,
+    ★≥4) belgisi (`src/lib/listenerBadge.ts`). `/guide` — "Qanday yaxshi
+    tinglash kerak" qo'llanmasi (onboarding qoidalari, kabinet, footer,
+    sitemap).
+62. **[✅ QO'SHILDI] "Xat" rejimi** (`013_letters.sql`, `server/src/letters.ts` —
+    `/api/letters` router'i, `/letters` va `/letters/[id]` sahifalari).
+    Yozma, kechikkan suhbat: muallif xat yozadi (≤2000 belgi, bir vaqtda ko'pi
+    bilan 3 ta ochiq), mos dardkashlarga (til, jins afzalligi) saytda
+    `letter_new` yoki Telegram'da havola (navbat bilan umumiy 15 daqiqalik
+    cheklov); birinchi olgan dardkash (`/take`, atomar UPDATE) javob yozadi,
+    keyin navbatma-navbat. Javob kelganda ikkinchi tomonga `letter_reply`
+    (saytda bo'lmasa Telegram). "Yangi javob" belgisi `author_seen_at` /
+    `listener_seen_at` orqali. Muallif yakunlaydi (`/close`), dardkash
+    boshqasiga qoldiradi (`/release`), ikkalasi shikoyat qila oladi
+    (`/report` → umumiy `fileReport()`, `moderation.ts`). Sweeper: 7 kunda
+    hech kim olmagan xat `expired`; olingan, lekin 48 soatda javob yozilmagan
+    xat qaytadan `open`. Kabinetda "Xat yozish" tugmasi, navbat taklifida
+    "yoki xat yozing" havolasi, ochiq xatlar / yangi javob banneri.
+    Sanalar endi raqamli oy bilan (`month: "2-digit"`) — brauzerlarda
+    o'zbekcha qisqa oy nomlari yo'q, "M10" chiqardi.
+63. **[✅ QO'SHILDI] Telegram Mini App.** Bot'ning `/start` javobida
+    "📱 Dardkash'ni ochish" (`web_app`) tugmasi; sayt Telegram ichida ochilganda
+    `TelegramMiniApp.tsx` (layout) URL hash'idagi imzolangan `tgWebAppData`ni
+    `POST /api/auth/telegram-webapp`ga yuboradi → `verifyTelegramWebAppData()`
+    (`auth/telegram.ts`, "WebAppData" HMAC; `signature` maydoni bilan ham,
+    usiz ham tekshiriladi, 24 soat) → odatdagi `dardkash_session` cookie,
+    bosh sahifadan ochilgan bo'lsa profil bo'yicha `/dashboard` yoki
+    `/onboarding`. Telegram SDK skripti faqat Mini App ichida yuklanadi.
+    **Cheklov:** Telegram Web (brauzer versiyasi) ilovani iframe'da ochadi —
+    nginx'dagi `X-Frame-Options: SAMEORIGIN` va `SameSite=Lax` cookie buni
+    bloklaydi; mobil/desktop Telegram ilovalari webview'da ochadi va ishlaydi.
+    Menyu tugmasi BotFather'da qo'lda sozlanadi (Bot Settings → Menu Button →
+    URL `https://dardkash.uz/`).
+64. **[✅ QO'SHILDI] Xatlar moderatsiyasi** (`014_letter_moderation.sql`,
+    foydalanuvchi qarori). Akkauntning birinchi xati (`open/taken/closed/expired`
+    holatidagi xati hali yo'q bo'lsa) `pending` bo'lib, admin'ga Telegram'da
+    `letter_ok:` / `letter_no:` tugmalari bilan boradi; keyingilari darhol
+    `open`. Dardkash ochiq xatni (olmasdan) yoki o'zi olgan xatni "Spam" deb
+    belgilaydi (`POST /api/letters/:id/flag`) → `hidden`, admin'ga
+    `letter_spam:` (→ `removed` + `users.letters_blocked_until` = 14 kun,
+    muallifning boshqa ochiq xatlari ham yopiladi) yoki `letter_restore:`.
+    Cheklangan muallif `POST /api/letters`da 403 `letters_blocked`. 14 kunlik
+    cheklov ataylab admin tasdig'i bilan (avtomatik emas) — xato bilan
+    "spam" deyilgan chin xat egasi bloklanib qolmasin. Yozish oynasi ostida
+    xatni kim o'qishi tushuntiriladi. `ADMIN_TELEGRAM_CHAT_ID` bo'lmasa
+    moderatsiya o'tkazib yuboriladi.
+65. **[✅ TUZATILDI] Header.** `public/logo.svg`ning viewBox'i rasmning
+    o'ziga qirqildi (avval 1000×300 ichida rasm atigi 932×140 joyni egallardi —
+    40px balandlikda belgi ~19px ko'rinardi); logo endi `h-7 sm:h-8 md:h-9`.
+    Til almashtirgich, profil tugmasi va "Kirish" — hammasi `h-9`; telefonda
+    profil tugmasida faqat bosh harf. Desktop menyu havolalari bir xil
+    `text-sm font-medium` (avval biri mavjud bo'lmagan `text-md` edi).
+66. **[✅ QO'SHILDI] Taklif bilan qisqa xabar** (`015_invite_message.sql`,
+    foydalanuvchi taklifi). "Taklif yuborish" endi oyna ochadi — ixtiyoriy
+    xabar (≤300 belgi, `sessions.invite_message`). Dardkash uni kabinetdagi
+    takliflarda, qo'ng'iroq oynasida va Telegram xabarida (`call-notify.ts`)
+    ko'radi. Xabar tekshirilmasdan borgani uchun xabarli taklifda
+    "🚩 Shikoyat" bor: Telegram'da `invite_report:` callback, kabinetda —
+    mavjud `/api/session/:id/report` + rad etish; ikkalasi ham taklifni
+    bekor qilib, admin'ga shikoyat yuboradi.
+67. **[✅ QO'SHILDI] Taklif xabariga javob (yozishma).** Taklif xabari
+    `chat_messages`ga birinchi qator bo'lib yoziladi; dardkash kabinetdan
+    "Javob yozish" (`/session/:id?chat=1` — yozishma darhol ochiq) yoki
+    Telegram'da bot xabariga **Reply** qilib javob beradi. Barcha yozishma
+    xabarlari endi `server/src/session-chat.ts`dagi `saveChatMessage()` orqali:
+    saqlash → chat xonasiga yetkazish → ikkinchi tomon oynada bo'lmasa, saytda
+    `chat_message` toast'i yoki Telegram (bir suhbatga 60 soniyada bitta,
+    "Reply" uchun `chat_telegram_messages`ga yoziladi, `016_chat_telegram.sql`).
+    Webhook bot xabarlariga qilingan Reply'ni admin'ga forward qilishdan
+    OLDIN `handleTelegramChatReply()` bilan tekshiradi. Avval REST orqali
+    yozilgan xabar chat xonasiga umuman yetib bormasdi — endi boradi.
+68. **[✅ QO'SHILDI] Telegram'da "✍️ Javob yozish" tugmasi va saytdagi xabar
+    kartochkasi** (foydalanuvchi talabi: "Reply'ni ko'pchilik bilmaydi").
+    Taklif va yozishma bildirishnomalarida `chat_reply:<sessionId>` tugmasi →
+    bot `force_reply` bilan javob so'raydi (yozish maydoni o'zi ochiladi) →
+    keyingi oddiy xabar suhbatga yoziladi (`handleTelegramPendingReply`,
+    xotirada, 10 daqiqa, bir martalik; `/`-buyruq bekor qiladi). Reply ham
+    ishlayveradi. Saytda yozishma oynasi yopiq bo'lsa, `chat_message` endi
+    qisqa toast emas — pastki burchakda kartochka (ism, matn, "Javob yozish",
+    yengil signal, 20 soniya).
+69. **[✅ QO'SHILDI] Qo'ng'iroqsiz yozishma sahifalari.** `/messages` (ro'yxat,
+    `GET /api/conversations` — yozishmasi bor suhbatlar, 60 kun) va
+    `/messages/[id]` (yorug' sayt ko'rinishida chat; taklifni qabul/rad
+    qilish, bekor qilish, qo'ng'iroqqa qo'shilish tugmalari; yakunlangan
+    suhbat — faqat o'qish). Chat ulanish mantig'i
+    `src/components/session/useSessionChat.ts` hookiga ajratildi — qo'ng'iroq
+    ichidagi `ChatPanel` ham shuni ishlatadi (bir xil xabarlar). Kabinetdagi
+    "Javob yozish"/"Yozishma", xabar kartochkasi va Telegram'dagi
+    "Yozishmani ochish" endi `/messages/[id]`ga olib boradi. Profil
+    menyusida "Xabarlar" va "Xatlar".
+70. **[✅ QO'SHILDI] O'qilmagan xabarlar soni va "✉️ Xabar yozish".**
+    `017_chat_reads.sql` (`chat_reads` — kim yozishmani qachon o'qigan).
+    `GET /api/unread` → yozishmalardagi o'qilmagan xabarlar + yangi javobli
+    xatlar; sarlavhadagi profil tugmasida yashil doirachada son (`SiteHeader`:
+    yangi xabarda, o'qilganda — `UNREAD_CHANGED_EVENT` — va har 30 soniyada
+    yangilanadi), menyuda "Xabarlar"/"Xatlar" yonida, `/messages`
+    ro'yxatida har bir yozishma uchun. Yozishma ochilganda (sahifa yoki
+    qo'ng'iroq ichidagi ochiq panel — `useSessionChat(..., markRead)`) va
+    odam o'zi yozganda (Telegram'dan ham, `saveChatMessage`) o'qilgan deb
+    belgilanadi. Dardkash kartochkasida (onlayn bo'lsa ham) "✉️ Xabar
+    yozish" → `POST /api/conversations` (qo'ng'iroqsiz, jiringlashsiz
+    `scheduled` suhbat + yozishma bildirishnomasi) → `/messages/[id]`.
+71. **[✅ YANGILANDI] Kabinet (dashboard) tablar bilan** (foydalanuvchi: "bardak
+    bo'lib ketgan"). Tepada faqat e'tibor talab qiladiganlar (kelgan takliflar,
+    boshlangan suhbatlar, navbat, yangi xat banneri, Telegram banneri,
+    "Suhbatdosh kutayotganlar"); pastda tablar: Dardkashlar ("Hammasi /
+    Onlayn / Saqlanganlar" filtri, onlaynlar birinchi), Takliflarim, Suhbatlar
+    tarixi, Mening hissam (faqat dardkashga). `?tab=` orqali to'g'ridan-to'g'ri
+    ochiladi. Kartochkada baho bo'lmasa "★ 0.0" ko'rsatilmaydi.
+72. **[✅ QO'SHILDI] Bot xabarlari: tasdiq, rad etish, xush kelibsiz**
+    (`server/src/listener-review.ts`, `018_listener_welcome.sql`). Sayt va
+    Telegram tugmalari endi bitta `approveListener()`/`rejectListener()`
+    orqali. Tasdiq xabari — 3 qadamli yo'riqnoma + "📱 Dardkash'ni ochish"
+    (`web_app`), "📖 Qo'llanma", "🕒 Bo'sh vaqt" tugmalari; rad etishda —
+    sabab va "✏️ Profilni tahrirlash". Telegram'da "❌ Rad etish" endi admin'dan
+    sabab so'raydi (`force_reply`, keyingi xabar — sabab, "-" — sababsiz,
+    10 daqiqa, `handleRejectReason` webhook'da admin chati uchun eng avval).
+    Profil birinchi marta yaratilganda Telegram ulangan bo'lsa xush kelibsiz
+    xabari (dardkash arizachisiga — "ariza moderatorga yuborildi"). Xabarlar
+    `profiles.language` bo'yicha uz/ru. Telegram'siz dardkash uchun kabinetda
+    bir martalik "🎉 Tabriklaymiz" kartochkasi (`/api/me` →
+    `listener_welcome`, `POST /api/listener/welcome-seen`); migratsiya
+    allaqachon tasdiqlanganlarni "ko'rgan" deb belgilaydi.
+    **Test usuli:** `NODE_OPTIONS="--require mock-tg.cjs"` bilan `fetch`ni
+    ushlab, Telegram'ga ketadigan so'rovlarni faylga yozib tekshirish mumkin.
+73. **[✅ TUZATILDI] Telefonda sahifa o'ngga toshardi** (kabinet tablari
+    qo'shilgandan beri, 420px'da kenglik 461px). Sabab: `body` — grid,
+    `main` grid elementining `min-width: auto`si ichidagi aylantiriladigan
+    tablar qatorining to'liq kengligini oldi. `[locale]/layout.tsx`da
+    `<main className="min-w-0">`. Barcha asosiy sahifalar 375px'da tekshirildi.
+74. **[✅ YANGILANDI] Next.js 16.4.0 → 16.4.2 (xavfsizlik, 2026-10-23).**
+    `npm audit`: 16.0.0–16.4.0 da critical zaifliklar (Image Optimization va
+    `use cache` orqali RCE, Server Actions DoS). Next 16.4.0 o'zi ham
+    `next build`ni `SecurityFatalError` bilan to'xtatardi — ya'ni Docker
+    build'i (deploy) yiqilardi. `next` va `eslint-config-next` 16.4.2 ga;
+    production `npm audit` toza. Dev-bog'liqliklarda (`braces`,
+    `postcss-selector-parser`) qolgan zaifliklar faqat `--force` bilan
+    tuzaladi — jonli saytga kirmaydi, tegilmadi.
+75. **[✅ QO'SHILDI] Dardkash arizasida "Telegram'ni ulang" qadami**
+    (foydalanuvchi talabi: Google orqali kirganlar tasdiq va qo'ng'iroqlardan
+    bexabar qolardi — 14 tasdiqlangan dardkashdan 5 tasida Telegram yo'q edi).
+    Formaning 4-qadamida (faqat ulanmaganlarga) va "ariza ko'rib chiqilmoqda"
+    ekranida tugma; ulangach `telegram_linked` socket hodisasi (yoki oynaga
+    qaytilganda `/api/me`) bilan darhol "✓ Telegram ulandi". Majburiy emas —
+    "tavsiya etiladi". `GET /api/profile` endi `telegramLinked` qaytaradi.
+    Ulash funksiyasi `src/lib/telegramLink.ts`ga ajratildi (kabinet ham shuni
+    ishlatadi).
+76. **[✅ YANGILANDI] Telefonda tugmalar ixchamroq.** Bosh sahifa CTA'lari
+    (`cta.ts`) telefonda 60-64px → ~48px (kompyuterda o'zgarmadi); `Button`
+    primary soyasi 6px → 3px. Dardkash kartochkasida asosiy amal va
+    "💬 Xabar" (ikonkali, chegarali) tugmasi bir qatorda — avval "Xabar yozish"
+    oddiy matnga o'xshab bilinmasdi.
+77. **[✅ QO'SHILDI] Profillar va avatarlar** (`019_avatar_about.sql`).
+    - **Tayyor avatarlar** (`src/lib/avatars.ts`, `components/ui/Avatar.tsx` —
+      12 ta tabiat ikonkasi, haqiqiy rasm ataylab yo'q: anonimlik, moderatsiya).
+      Tanlanmagan bo'lsa — bosh harf. Sarlavha, kartochkalar, yozishmalar,
+      suhbat ekrani, bosh sahifa. `tailwind.config.ts` endi `src/lib`ni ham
+      skanerlaydi (avatar ranglari shu yerda).
+    - **Dardkash profili** `/listeners/[id]` (`GET /api/listeners/:id/profile`,
+      faqat tasdiqlangan): bio, mavzular, tillar, bo'sh vaqt, reyting,
+      suhbatlar, rahmat xatlari SONI; yosh/jins/telefon yo'q. Kartochkadagi
+      taxallus/avatar shu sahifaga olib boradi. Formada bio ostida "bu matn
+      profilingizda hamma ko'radigan joyda chiqadi" izohi.
+    - **Dardini aytuvchining mini-profili** (`GET /api/users/:id/mini-profile`,
+      `SpeakerMiniProfile.tsx`) — FAQAT u bilan aloqadagi tasdiqlangan
+      dardkashga (60 kun ichidagi suhbat/taklif/yozishma, olingan xat yoki
+      navbatda turgan bo'lsa); boshqalarga 404. Avatar, yosh oralig'i, tillar,
+      gaplashmoqchi bo'lgan mavzular, ixtiyoriy `profiles.about` (≤200).
+      Ommaviy sahifa yo'q — anonimlik dardini aytuvchi uchun asosiy va'da.
+78. **[✅ TUZATILDI] Qo'ng'iroqsiz yozishmalar 24 soatda "yakunlanib" qolardi.**
+    `session-sweeper.ts`ning `expireInvites()` har qanday `scheduled` suhbatni
+    24 soatda `cancelled` qilardi — "✉️ Xabar yozish"/xabarli taklif orqali
+    boshlangan yozishmalar ham shunday suhbat, ya'ni odamlar yozishayotgan
+    paytda suhbat "faqat o'qish" bo'lib qolardi (production'da 1 ta shunday
+    holat bo'lgan). Endi yozishmasi bor `scheduled` suhbat oxirgi xabardan
+    `CONVERSATION_IDLE_DAYS` (7) kun o'tmaguncha ochiq; xabarsiz javobsiz
+    taklif — avvalgidek 24 soat.
+79. **[✅ QO'SHILDI] Telegram'ni boshqa hisobdan ko'chirish** (`server/src/telegram-move.ts`).
+    Odam avval Telegram, keyin Google orqali kirsa — ikki alohida hisob; Google
+    hisobiga "Telegram'ni ulash" avval "boshqa hisobga bog'langan" deb to'xtardi.
+    Endi: eski hisobning profili yo'q bo'lsa — so'ramasdan ko'chiriladi, bo'sh
+    hisob o'chadi; aks holda bot eski/yangi taxallus bilan tasdiq so'raydi
+    (`tg_move_yes` / `tg_move_no`, 10 daqiqa, faqat o'sha Telegram egasi).
+    Google'siz eski hisobga endi kirib bo'lmagani uchun u `banUser()` bilan
+    "Birlashtirildi: …" sababida yopiladi (ro'yxat/matching'dan chiqadi; admin
+    "Bloklanganlar"da shu sabab bilan ko'rinadi). To'liq ma'lumot birlashtirish
+    ataylab yo'q (o'nlab jadval — xavfli). To'qnashuvlar logga yoziladi.
+80. **[✅ YANGILANDI] Profilni tahrirlash — tablar** (`?edit=1`): Asosiy /
+    Suhbat / Dardkash profili, har bo'lim kartochkada, muammoli tabda qizil
+    nuqta, "Saqlash" pastda yopishqoq (sticky). Avval hamma bo'lim bitta juda
+    uzun sahifada edi.
+81. **[✅ QO'SHILDI] Brauzer push-bildirishnomalari** (`020_push_subscriptions.sql`,
+    `server/src/push.ts`, `public/sw.js`, `src/lib/push.ts`, `PushPrompt.tsx`,
+    `src/app/manifest.ts`, `public/icon-192.png`/`icon-512.png`). VAPID kalitlari
+    `.env`da (`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/`VAPID_SUBJECT`; yo'q bo'lsa
+    push o'chiq, boshqa hech narsa buzilmaydi). `pushIfOffline()` — foydalanuvchi
+    saytda bo'lmasa (notify socket ulanmagan): qo'ng'iroq/taklif, yozishma xabari
+    (Telegram bilan umumiy 60 soniyalik cheklov), xat javobi, yangi xat va
+    "kimdir kutmoqda" (15 daqiqalik umumiy cheklov — endi Telegram'siz
+    dardkashlarga ham), "dardkash topildi", ariza natijasi, rahmat xati. 404/410
+    javobidagi obuna o'chiriladi. Kabinetda yopiladigan "Bildirishnomalarni
+    yoqing" kartochkasi, profil tahrirlashda yoqish/o'chirish; iPhone'da "Bosh
+    ekranga qo'shish" yo'riqnomasi (iOS faqat o'rnatilgan saytda push beradi).
+    Kirishda obuna joriy hisobga bog'lanadi (`resyncPush`), chiqishda o'chiriladi.
+    **Test usuli:** soxta HTTPS push serveri (`http_ece` bilan shifrni ochib)
+    + `NODE_TLS_REJECT_UNAUTHORIZED=0` — headless brauzerda push xizmati yo'q.
+82. **[✅ TUZATILDI] Profilsiz foydalanuvchi kabinetga tushib qolardi**
+    (production'da topildi, 2026-10-23). Google'dan birinchi marta qaytgan
+    yangi odam profilsiz `/dashboard`ga tushib, "Suhbatni boshlash"ni bosdi —
+    suhbat yaratildi, lekin `GET /api/session/:id` (`profiles` bilan JOIN) 404
+    berib, sahifa buzildi; "Xabar yozish" esa "Dardkash topilmadi" deb
+    chalg'itdi. Endi: kabinet profilsizni `/onboarding`ga yuboradi; backend'da
+    `requireProfile` (`/api/session/start`, `/api/invites`, `/api/session/match`,
+    `/api/conversations` → 400 `no_profile`); suhbat ma'lumoti `LEFT JOIN`.
+    Profilsiz odam `/onboarding?edit=1`dan kirsa ham — tablar emas, qadamma-qadam
+    forma (`hasProfile`). Tahrirlashda "Saqlash" doim bosiladi: chala tab bo'lsa
+    o'sha tab ochiladi, izohda "«Suhbat» bo'limida: …" (avval tugma sababsiz
+    o'chiq turardi, sababi boshqa tabda yashirin edi).

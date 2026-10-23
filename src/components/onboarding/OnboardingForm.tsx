@@ -3,8 +3,14 @@
 import Button from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import TopicTag from "@/components/ui/TopicTag";
-import { useRouter } from "@/i18n/navigation";
+import { NOTIFY_EVENT } from "@/components/call/CallNotifier";
+import { Link, useRouter } from "@/i18n/navigation";
+import { openTelegramLink } from "@/lib/telegramLink";
 import { authHrefFor } from "@/components/landing/useLandingCta";
+import PushPrompt from "@/components/call/PushPrompt";
+import Avatar from "@/components/ui/Avatar";
+import { AVATARS } from "@/lib/avatars";
+import { WEEKDAYS, formatHour } from "@/lib/availability";
 import { MAX_TOPICS, TOPIC_CODES, type TopicCode } from "@/lib/topics";
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
@@ -12,6 +18,7 @@ import { useEffect, useState } from "react";
 
 type Role = "speaker" | "listener" | "both";
 type Step = 1 | 2 | 3 | 4;
+type EditTab = "basic" | "conversation" | "listener";
 type Lang = "uz" | "ru";
 type PreferredGender = "any" | "male" | "female";
 
@@ -28,7 +35,16 @@ interface FormState {
   languages: Lang[];
   preferredListenerGender: PreferredGender;
   bio: string;
+  // Dardkashning odatiy bo'sh vaqti (ixtiyoriy): kunlar 1..7, soatlar
+  // Toshkent vaqti, `availTo` 24 — yarim tun.
+  availDays: number[];
+  availFrom: number | null;
+  availTo: number | null;
   acceptedRules: boolean;
+  // Tayyor avatar (src/lib/avatars.ts) va dardini aytuvchining ixtiyoriy
+  // "o'zim haqimda" matni (faqat aloqadagi dardkashga ko'rinadi).
+  avatar: string | null;
+  about: string;
 }
 
 const AGE_RANGES = ["18-24", "25-34", "35-44", "45-54", "55+"];
@@ -64,17 +80,28 @@ function sameItems(a: string[], b: string[]): boolean {
 export default function OnboardingForm() {
   const t = useTranslations("onboarding");
   const tTopics = useTranslations("topics");
+  const tDays = useTranslations("days");
   const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialRole = (searchParams.get("role") as Role) || "";
-  const isEditMode = searchParams.get("edit") === "1";
+  const editRequested = searchParams.get("edit") === "1";
+  // Profili hali yo'q odam (masalan Google'dan birinchi marta) menyudagi
+  // "Profilni tahrirlash"dan kirsa ham — qadamma-qadam forma: tablarda
+  // majburiy maydonlar boshqa tabda qolib, saqlay olmay qolardi.
+  const [hasProfile, setHasProfile] = useState(false);
+  const isEditMode = editRequested && hasProfile;
   const toast = useToast();
   const [step, setStep] = useState<Step>(1);
+  const [editTab, setEditTab] = useState<EditTab>("basic");
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [checkingProfile, setCheckingProfile] = useState(true);
   const [listenerStatus, setListenerStatus] = useState<string | null>(null);
+  // Google orqali kirgan dardkash arizachisi Telegram'ni ulamasa, ariza
+  // natijasi ham, qo'ng'iroqlar ham unga yetib bormaydi.
+  const [telegramLinked, setTelegramLinked] = useState(true);
+  const [linkingTelegram, setLinkingTelegram] = useState(false);
   // Yangi cheklovlar (mavzular soni, bio uzunligi) qo'shilishidan oldin
   // saqlangan qiymatlar — o'zgarmagan bo'lsa, forma ularni rad etmaydi
   // (backend ham xuddi shunday qiladi).
@@ -94,7 +121,12 @@ export default function OnboardingForm() {
     languages: [locale === "ru" ? "ru" : "uz"],
     preferredListenerGender: "any",
     bio: "",
+    availDays: [],
+    availFrom: null,
+    availTo: null,
     acceptedRules: false,
+    avatar: null,
+    about: "",
   });
 
   // Onboarding forma ikkita vazifani bajaradi: birinchi marta ro'yxatdan
@@ -118,8 +150,10 @@ export default function OnboardingForm() {
         return res.ok ? res.json() : null;
       })
       .then((data) => {
+        if (data) setTelegramLinked(Boolean(data.telegramLinked));
         const p = data?.profile;
         if (!p) return;
+        setHasProfile(true);
 
         const isComplete = Boolean(
           p.nickname && p.age_range && p.wants && p.topics?.length,
@@ -131,7 +165,7 @@ export default function OnboardingForm() {
         // dashboard'ga qaytarib yuborish noto'g'ri bo'lardi.
         const roleAlreadyCovered =
           !initialRole || p.wants === initialRole || p.wants === "both";
-        if (isComplete && !isEditMode && roleAlreadyCovered) {
+        if (isComplete && !editRequested && roleAlreadyCovered) {
           redirecting = true;
           router.replace("/dashboard");
           return;
@@ -170,11 +204,16 @@ export default function OnboardingForm() {
           preferredListenerGender:
             p.preferred_listener_gender || prev.preferredListenerGender,
           bio: p.bio || prev.bio,
+          availDays: p.availability?.days ?? prev.availDays,
+          availFrom: p.availability?.from ?? prev.availFrom,
+          availTo: p.availability?.to ?? prev.availTo,
           // `listener_profiles` qatori mavjudligi — 4-qadam (qoidalar)
           // avval haqiqatan ko'rsatilgan va qabul qilingan degani. Faqat
           // "speaker" bo'lgan foydalanuvchi bu qadamni umuman ko'rmagan,
           // shuning uchun `p.wants` emas, aynan shu maydon tekshiriladi.
           acceptedRules: prev.acceptedRules || Boolean(p.listener_status),
+          avatar: p.avatar ?? prev.avatar,
+          about: p.about ?? prev.about,
         }));
       })
       .catch(() => {})
@@ -183,6 +222,51 @@ export default function OnboardingForm() {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Telegram'da ulangach — backend socket orqali `telegram_linked` yuboradi;
+  // socket uzilgan bo'lsa, oynaga qaytilganda tekshiramiz.
+  useEffect(() => {
+    if (telegramLinked) return;
+    const recheck = () =>
+      fetch("/api/me", { credentials: "include" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.user?.telegram_id) setTelegramLinked(true);
+        })
+        .catch(() => {});
+    const onNotify = (event: Event) => {
+      if ((event as CustomEvent).detail?.type === "telegram_linked") setTelegramLinked(true);
+    };
+    window.addEventListener(NOTIFY_EVENT, onNotify);
+    window.addEventListener("focus", recheck);
+    return () => {
+      window.removeEventListener(NOTIFY_EVENT, onNotify);
+      window.removeEventListener("focus", recheck);
+    };
+  }, [telegramLinked]);
+
+  async function connectTelegram() {
+    setLinkingTelegram(true);
+    if (!(await openTelegramLink())) toast.push(t("telegramLinkError"), "error");
+    setLinkingTelegram(false);
+  }
+
+  const telegramBlock = telegramLinked ? (
+    <p className="rounded-2xl border border-barg/30 bg-barg/5 px-4 py-3 text-sm text-kul/80">
+      {t("telegramLinked")}
+    </p>
+  ) : (
+    <div className="rounded-2xl border border-yulduz/30 bg-yulduz/5 p-4 text-left">
+      <p className="font-semibold text-kul">
+        {t("telegramTitle")}{" "}
+        <span className="text-xs font-normal text-kul/55">({t("telegramRecommended")})</span>
+      </p>
+      <p className="mt-1 text-sm text-kul/70">{t("telegramBody")}</p>
+      <Button size="md" className="mt-3" onClick={connectTelegram} disabled={linkingTelegram}>
+        {linkingTelegram ? t("telegramConnecting") : t("telegramButton")}
+      </Button>
+    </div>
+  );
 
   const wantsListener = form.role === "listener" || form.role === "both";
   const wantsSpeaker = form.role === "speaker" || form.role === "both";
@@ -201,6 +285,15 @@ export default function OnboardingForm() {
       if (current.length >= MAX_TOPICS) return prev;
       return { ...prev, [key]: [...current, code] };
     });
+  }
+
+  function toggleDay(day: number) {
+    setForm((prev) => ({
+      ...prev,
+      availDays: prev.availDays.includes(day)
+        ? prev.availDays.filter((d) => d !== day)
+        : [...prev.availDays, day],
+    }));
   }
 
   function toggleLanguage(lang: Lang) {
@@ -228,7 +321,8 @@ export default function OnboardingForm() {
   // shunchaki o'chiq turardi.
   function stepProblem(s: Step): string | null {
     if (s === 1) {
-      if (form.nickname.trim().length < 2) return t("hintNickname");
+      // Belgi bo'yicha (emoji = 1), backend va bazadagi kabi.
+      if ([...form.nickname.trim()].length < 2) return t("hintNickname");
       if (form.ageRange === "") return t("hintAge");
     }
     if (s === 2 && form.role === "") return t("hintRole");
@@ -252,6 +346,11 @@ export default function OnboardingForm() {
         (bioLength < MIN_BIO_LENGTH && form.bio !== saved.bio)
       )
         return t("hintBio", { min: MIN_BIO_LENGTH });
+      if (
+        form.availDays.length > 0 &&
+        (form.availFrom === null || form.availTo === null || form.availFrom === form.availTo)
+      )
+        return t("hintAvailability");
       if (!isPhoneOk(form.phone)) return t("hintPhone");
       if (!form.acceptedRules) return t("hintRules");
     }
@@ -259,11 +358,35 @@ export default function OnboardingForm() {
   }
 
   const allSteps: Step[] = wantsListener ? [1, 2, 3, 4] : [1, 2, 3];
-  // Tahrirlash rejimida hamma bo'lim bitta sahifada ko'rsatiladi.
+  // Tahrirlash rejimi — tablar (avval hamma bo'lim bitta uzun sahifada edi):
+  // Asosiy (1-qadam), Suhbat (2-3), Dardkash profili (4, faqat dardkashga).
+  const editTabs = (
+    [
+      ["basic", t("editTabBasic"), [1]],
+      ["conversation", t("editTabConversation"), [2, 3]],
+      ...(wantsListener ? [["listener", t("editTabListener"), [4]]] : []),
+    ] as [EditTab, string, Step[]][]
+  ).map(([key, label, steps]) => ({
+    key,
+    label,
+    steps,
+    hasProblem: steps.some((st) => Boolean(stepProblem(st))),
+  }));
+  const currentEditTab = editTabs.some((tab) => tab.key === editTab) ? editTab : "basic";
+  const problemTab = editTabs.find((tab) => tab.hasProblem);
   const problem = isEditMode
     ? (allSteps.map(stepProblem).find(Boolean) ?? null)
     : stepProblem(step);
-  const show = (s: Step) => isEditMode || step === s;
+  // Tahrirlash rejimida har bir bo'lim alohida kartochka (bir tabda ikkitasi
+  // bo'lishi mumkin — "Suhbat").
+  const sectionClass = (base: string) =>
+    isEditMode
+      ? `${base} rounded-wave border border-kul/10 bg-white/60 p-5 sm:p-6 [&+&]:mt-5`
+      : base;
+  const show = (st: Step) =>
+    isEditMode
+      ? Boolean(editTabs.find((tab) => tab.key === currentEditTab)?.steps.includes(st))
+      : step === st;
 
   async function handleFinish() {
     setSaving(true);
@@ -287,6 +410,14 @@ export default function OnboardingForm() {
           languages: form.languages,
           preferredListenerGender: form.preferredListenerGender,
           bio: form.bio,
+          avatar: form.avatar,
+          about: wantsSpeaker ? form.about : undefined,
+          // Kun tanlanmagan bo'lsa — bo'sh vaqt olib tashlanadi (null).
+          availability: wantsListener
+            ? form.availDays.length > 0
+              ? { days: form.availDays, from: form.availFrom, to: form.availTo }
+              : null
+            : undefined,
           language: locale,
         }),
       });
@@ -301,7 +432,10 @@ export default function OnboardingForm() {
             : t("saveError"),
           "error",
         );
-        if (code === "nickname_taken") setStep(1);
+        if (code === "nickname_taken") {
+          setStep(1);
+          setEditTab("basic");
+        }
         return;
       }
       if (isEditMode && listenerStatus === "approved") {
@@ -337,6 +471,10 @@ export default function OnboardingForm() {
             {t("pendingTitle")}
           </h1>
           <p className="mt-3 text-kul/70">{t("pendingBody")}</p>
+          {!telegramLinked && (
+            <p className="mt-6 text-sm font-medium text-kul">{t("pendingTelegram")}</p>
+          )}
+          <div className="mt-3">{telegramBlock}</div>
           <Button className="mt-8" onClick={() => router.push("/dashboard")}>
             {t("finish")}
           </Button>
@@ -387,9 +525,46 @@ export default function OnboardingForm() {
 
   return (
     <section className="bg-sahar px-6 py-14">
-      <div className={`mx-auto max-w-xl ${isEditMode ? "space-y-12" : ""}`}>
+      <div className="mx-auto max-w-xl">
         {isEditMode ? (
-          <h1 className="font-display text-3xl text-kul">{t("editTitle")}</h1>
+          <>
+            <div className="flex items-center gap-4">
+              <Avatar code={form.avatar} nickname={form.nickname || "?"} size={56} />
+              <div className="min-w-0">
+                <h1 className="font-display text-2xl text-kul sm:text-3xl">{t("editTitle")}</h1>
+                <p className="truncate text-sm text-kul/55">{form.nickname}</p>
+              </div>
+            </div>
+            <div
+              role="tablist"
+              className="mt-8 flex gap-1 overflow-x-auto rounded-full bg-sahar-dim p-1 [scrollbar-width:none]"
+            >
+              {editTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={currentEditTab === tab.key}
+                  onClick={() => setEditTab(tab.key)}
+                  className={`relative flex-1 shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                    currentEditTab === tab.key
+                      ? "bg-white text-kul shadow-sm"
+                      : "text-kul/60 hover:text-kul"
+                  }`}
+                >
+                  {tab.label}
+                  {/* Shu tabda to'ldirilmagan/noto'g'ri maydon bor. */}
+                  {tab.hasProblem && (
+                    <span
+                      aria-hidden
+                      className="absolute right-2 top-1.5 h-2 w-2 rounded-full bg-gisht"
+                    />
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="h-8" />
+          </>
         ) : (
           <>
             <p className="mb-2 text-sm font-semibold text-barg">
@@ -405,7 +580,7 @@ export default function OnboardingForm() {
         )}
 
         {show(1) && (
-          <div className="space-y-6">
+          <div className={sectionClass("space-y-6")}>
             <h2 className="font-display text-2xl text-kul">
               {t("step1Title")}
             </h2>
@@ -447,6 +622,27 @@ export default function OnboardingForm() {
             </div>
 
             <div>
+              <label className={labelClass}>{t("avatarLabel")}</label>
+              <div className="flex flex-wrap gap-2">
+                {AVATARS.map((a) => (
+                  <button
+                    key={a.code}
+                    type="button"
+                    onClick={() => update("avatar", form.avatar === a.code ? null : a.code)}
+                    aria-pressed={form.avatar === a.code}
+                    aria-label={a.code}
+                    className={`rounded-full p-0.5 transition-shadow ${
+                      form.avatar === a.code ? "ring-2 ring-barg ring-offset-2 ring-offset-sahar" : ""
+                    }`}
+                  >
+                    <Avatar code={a.code} nickname={form.nickname || "?"} size={44} />
+                  </button>
+                ))}
+              </div>
+              <p className={noteClass}>{t("avatarNote")}</p>
+            </div>
+
+            <div>
               <label className={labelClass}>{t("gender")}</label>
               <div className="flex flex-wrap gap-2">
                 <TopicTag
@@ -473,8 +669,15 @@ export default function OnboardingForm() {
           </div>
         )}
 
+        {/* Brauzer bildirishnomalari — faqat tahrirlashda, "Asosiy" tabda. */}
+        {isEditMode && currentEditTab === "basic" && (
+          <div className={sectionClass("")}>
+            <PushPrompt variant="settings" />
+          </div>
+        )}
+
         {show(2) && (
-          <div className="space-y-4">
+          <div className={sectionClass("space-y-4")}>
             <h2 className="font-display text-2xl text-kul">
               {t("step2Title")}
             </h2>
@@ -506,7 +709,7 @@ export default function OnboardingForm() {
         )}
 
         {show(3) && (
-          <div className="space-y-7">
+          <div className={sectionClass("space-y-7")}>
             <div>
               <h2 className="font-display text-2xl text-kul">
                 {t("step3Title")}
@@ -535,6 +738,21 @@ export default function OnboardingForm() {
 
             {wantsSpeaker && (
               <div>
+                <label className={labelClass}>{t("aboutLabel")}</label>
+                <textarea
+                  value={form.about}
+                  onChange={(e) => update("about", e.target.value)}
+                  placeholder={t("aboutPlaceholder")}
+                  rows={2}
+                  maxLength={200}
+                  className={inputClass}
+                />
+                <p className={noteClass}>{t("aboutNote")}</p>
+              </div>
+            )}
+
+            {wantsSpeaker && (
+              <div>
                 <label className={labelClass}>{t("prefGenderTitle")}</label>
                 <div className="flex flex-wrap gap-2">
                   {(
@@ -560,12 +778,13 @@ export default function OnboardingForm() {
         )}
 
         {show(4) && wantsListener && (
-          <div className="space-y-6">
+          <div className={sectionClass("space-y-6")}>
             <div>
               <h2 className="font-display text-2xl text-kul">
                 {t("step4Title")}
               </h2>
               <p className="mt-2 text-sm text-kul/60">{t("bioHint")}</p>
+              <p className="mt-1 text-xs text-kul/50">{t("bioPublicNote")}</p>
               <textarea
                 value={form.bio}
                 onChange={(e) => update("bio", e.target.value)}
@@ -581,6 +800,53 @@ export default function OnboardingForm() {
                 })}
               </p>
             </div>
+
+            <div>
+              <label className={labelClass}>{t("availabilityTitle")}</label>
+              <div className="flex flex-wrap gap-2">
+                {WEEKDAYS.map((day) => (
+                  <TopicTag
+                    key={day}
+                    as="button"
+                    label={tDays(String(day))}
+                    selected={form.availDays.includes(day)}
+                    onClick={() => toggleDay(day)}
+                  />
+                ))}
+              </div>
+              {form.availDays.length > 0 && (
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  {(
+                    [
+                      ["availFrom", t("availabilityFrom"), 0, 23],
+                      ["availTo", t("availabilityTo"), 1, 24],
+                    ] as const
+                  ).map(([key, label, min, max]) => (
+                    <label key={key} className="text-xs text-kul/60">
+                      {label}
+                      <select
+                        value={form[key] ?? ""}
+                        onChange={(e) =>
+                          update(key, e.target.value === "" ? null : Number(e.target.value))
+                        }
+                        className={`mt-1 ${inputClass}`}
+                      >
+                        <option value="">—</option>
+                        {Array.from({ length: max - min + 1 }, (_, i) => min + i).map((h) => (
+                          <option key={h} value={h}>
+                            {formatHour(h)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p className={noteClass}>{t("availabilityNote")}</p>
+            </div>
+
+            {/* Faqat hali ulamaganlarga — ulangan bo'lsa shovqin qilmaymiz. */}
+            {!telegramLinked && telegramBlock}
 
             <div>
               <label className={labelClass}>{t("phone")}</label>
@@ -608,6 +874,13 @@ export default function OnboardingForm() {
               <h2 className="font-display text-lg text-kul">
                 {t("rulesTitle")}
               </h2>
+              <Link
+                href="/guide"
+                target="_blank"
+                className="mt-1 inline-block text-sm font-semibold text-barg hover:underline"
+              >
+                {t("guideLink")} →
+              </Link>
               <ul className="mt-3 space-y-1.5 text-sm text-kul/70">
                 <li>• {t("rule1")}</li>
                 <li>• {t("rule2")}</li>
@@ -628,7 +901,13 @@ export default function OnboardingForm() {
           </div>
         )}
 
-        <div className={isEditMode ? "" : "mt-10"}>
+        <div
+          className={
+            isEditMode
+              ? "sticky bottom-0 z-10 -mx-6 mt-10 border-t border-kul/10 bg-sahar/95 px-6 py-4 backdrop-blur"
+              : "mt-10"
+          }
+        >
           <div className="flex justify-between">
             {isEditMode ? (
               <Button variant="ghost" onClick={() => router.push("/dashboard")}>
@@ -646,9 +925,19 @@ export default function OnboardingForm() {
             )}
 
             {isEditMode ? (
+              // Doim bosiladi: chala tab bo'lsa — o'sha tab ochiladi (avval
+              // tugma shunchaki o'chiq turar, sababi boshqa tabda yashirin edi).
               <Button
-                disabled={Boolean(problem) || saving}
-                onClick={handleFinish}
+                disabled={saving}
+                onClick={() => {
+                  const firstProblemTab = editTabs.find((tab) => tab.hasProblem);
+                  if (firstProblemTab) {
+                    setEditTab(firstProblemTab.key);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                    return;
+                  }
+                  handleFinish();
+                }}
               >
                 {t("save")}
               </Button>
@@ -669,7 +958,11 @@ export default function OnboardingForm() {
             )}
           </div>
           {problem && (
-            <p className="mt-3 text-right text-xs text-kul/50">{problem}</p>
+            <p className="mt-3 text-right text-xs text-kul/50">
+              {isEditMode && problemTab
+                ? t("problemInTab", { tab: problemTab.label, problem })
+                : problem}
+            </p>
           )}
         </div>
       </div>

@@ -1,22 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { buildWsUrl } from "@/lib/ws";
-import { useToast } from "@/components/ui/Toast";
 import { SendHorizontal, X } from "lucide-react";
 import { useTranslations } from "next-intl";
-
-// Bu kodlar bilan yopilsa, muammo vaqtinchalik emas (login yo'q, sessionId
-// yo'q, yoki bu suhbatga aloqasi yo'q) — qayta ulanishga urinish faqat
-// cheksiz jim tsikl hosil qiladi, foydalanuvchiga hech narsa ko'rinmaydi.
-const FATAL_CLOSE_CODES = new Set([4001, 4002, 4003]);
-
-interface ChatMessage {
-  id: string;
-  sender_id: string;
-  content: string;
-  created_at: string;
-}
+import { useSessionChat } from "@/components/session/useSessionChat";
 
 export default function ChatPanel({
   sessionId,
@@ -33,75 +20,15 @@ export default function ChatPanel({
   // "o'qilmagan" belgisini ko'rsatish uchun.
   onIncoming?: () => void;
 }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [connectionError, setConnectionError] = useState<string | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const toast = useToast();
   const t = useTranslations("session");
-  const onIncomingRef = useRef(onIncoming);
-  useEffect(() => {
-    onIncomingRef.current = onIncoming;
-  }, [onIncoming]);
-
-  // Avval tarixni yuklaymiz, keyin real vaqt uchun WebSocket ulanamiz
-  useEffect(() => {
-    fetch(`/api/session/${sessionId}/messages`, { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data?.messages) setMessages(data.messages);
-      })
-      .catch(() => {});
-
-    let cancelled = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-
-    function connect() {
-      if (cancelled) return;
-      const ws = new WebSocket(
-        buildWsUrl(`/api/ws/chat?sessionId=${sessionId}`),
-      );
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        setConnectionError(null);
-      };
-
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "message") {
-          setMessages((prev) => [...prev, data.message]);
-          if (data.message.sender_id !== myUserId) onIncomingRef.current?.();
-        } else if (data.type === "error") {
-          toast.push(t("chatSendError"), "error");
-        }
-      };
-
-      // Uzoq suhbat davomida tarmoq bir lahza uzilishi mumkin — jimgina
-      // qayta ulanamiz, aks holda foydalanuvchi xabar yozadi-yu, hech
-      // qayerga yetib bormaydi (chunki `send()` faqat readyState OPEN
-      // bo'lganda ishlaydi). Lekin 4001-4003 — login yo'q yoki bu suhbatga
-      // aloqasi yo'q degani, qayta urinish faqat cheksiz jim tsikl beradi.
-      ws.onclose = (event) => {
-        if (cancelled) return;
-        if (FATAL_CLOSE_CODES.has(event.code)) {
-          setConnectionError(t("chatConnectError"));
-          return;
-        }
-        reconnectTimer = setTimeout(connect, 2000);
-      };
-    }
-
-    connect();
-
-    return () => {
-      cancelled = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      wsRef.current?.close();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  const { messages, send: sendMessage, connectionError } = useSessionChat(
+    sessionId,
+    myUserId,
+    onIncoming,
+    open,
+  );
 
   useEffect(() => {
     // scrollIntoView o'rniga faqat ro'yxatning o'zini aylantiramiz —
@@ -111,14 +38,7 @@ export default function ChatPanel({
   }, [messages]);
 
   function send() {
-    const text = input.trim();
-    if (!text) return;
-    if (wsRef.current?.readyState !== WebSocket.OPEN) {
-      toast.push(t("chatOffline"), "error");
-      return;
-    }
-    wsRef.current.send(JSON.stringify({ content: text }));
-    setInput("");
+    if (sendMessage(input)) setInput("");
   }
 
   if (!open) return null;

@@ -1,6 +1,8 @@
 import { RoomServiceClient } from "livekit-server-sdk";
 import { inviteStatusText, resolveInviteTelegram } from "./call-notify";
 import { pool } from "./db";
+import { sweepLetters } from "./letters";
+import { expireWaitlist } from "./waitlist";
 
 // "Osilib qolgan" suhbatlarni yopuvchi fon vazifasi.
 //
@@ -22,6 +24,11 @@ const MAX_SESSION_HOURS = 4;
 // Javob berilmagan taklif shuncha vaqtdan keyin bekor bo'ladi. Avval ular
 // abadiy `scheduled` qolib, dashboard'dagi takliflar ro'yxatida turaverardi.
 const INVITE_TTL_HOURS = 24;
+// Yozishmasi bor `scheduled` suhbat ("✉️ Xabar yozish" yoki xabarli taklif) —
+// bu endi shunchaki javobsiz taklif emas, qo'ng'iroqsiz yozishma. U oxirgi
+// xabardan shuncha kun o'tmaguncha ochiq qoladi (avval 24 soatda bekor
+// bo'lib, yozishayotgan odamlarning suhbati "yakunlangan" bo'lib qolardi).
+const CONVERSATION_IDLE_DAYS = 7;
 
 const roomService = new RoomServiceClient(
   process.env.LIVEKIT_API_URL || "http://dardkash-livekit:7880",
@@ -51,11 +58,21 @@ async function endSessions(ids: string[], reason: string) {
 
 async function expireInvites() {
   const expired = await pool.query(
-    `UPDATE sessions SET status = 'cancelled', ended_at = now()
-     WHERE status = 'scheduled'
-       AND created_at < now() - make_interval(hours => $1)
-     RETURNING id`,
-    [INVITE_TTL_HOURS],
+    `UPDATE sessions s SET status = 'cancelled', ended_at = now()
+     FROM (
+       SELECT s2.id,
+              (SELECT MAX(m.created_at) FROM chat_messages m WHERE m.session_id = s2.id) AS last_msg
+       FROM sessions s2
+       WHERE s2.status = 'scheduled'
+         AND s2.created_at < now() - make_interval(hours => $1)
+     ) x
+     WHERE s.id = x.id
+       AND (
+         x.last_msg IS NULL
+         OR x.last_msg < now() - make_interval(days => $2)
+       )
+     RETURNING s.id`,
+    [INVITE_TTL_HOURS, CONVERSATION_IDLE_DAYS],
   );
   for (const { id } of expired.rows) {
     await resolveInviteTelegram(id, inviteStatusText("expired"));
@@ -67,6 +84,8 @@ async function expireInvites() {
 
 async function sweep() {
   await expireInvites();
+  await expireWaitlist();
+  await sweepLetters();
 
   const tooLong = await pool.query(
     `SELECT id FROM sessions

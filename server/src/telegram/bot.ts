@@ -8,19 +8,31 @@ export function escapeHtml(text: string): string {
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN as string;
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-interface InlineButton {
-  text: string;
-  callback_data: string;
-}
+// Tugma: bot'ga qaytadigan `callback_data`, saytni ochadigan `url` yoki
+// Telegram ichidagi Mini App (`web_app`).
+type InlineButton =
+  | { text: string; callback_data: string }
+  | { text: string; url: string }
+  // Mini App'ni Telegram ichida ochadi (faqat shaxsiy chatlarda ishlaydi).
+  | { text: string; web_app: { url: string } };
 
 // Foydalanuvchiga (yoki admin chatiga) xabar yuboradi. `buttons` berilsa,
 // xabar ostida bosiladigan tugmalar chiqadi (masalan "Tasdiqlash"/"Rad etish").
 // Qaytadi: Telegram xabar ID'si (keyin uni tahrirlash uchun kerak bo'ladi).
+// `forceReply` — Telegram yozish maydonini o'zi ochib, javobni shu xabarga
+// bog'laydi (foydalanuvchi "Reply" qilishni bilishi shart emas).
+type ForceReply = { forceReply: true; placeholder?: string };
+
 export async function sendTelegramMessage(
   chatId: string | number,
   text: string,
-  buttons?: InlineButton[][],
+  buttons?: InlineButton[][] | ForceReply,
 ): Promise<number | null> {
+  const replyMarkup = !buttons
+    ? undefined
+    : Array.isArray(buttons)
+      ? { inline_keyboard: buttons }
+      : { force_reply: true, input_field_placeholder: buttons.placeholder };
   try {
     const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
       method: "POST",
@@ -29,7 +41,7 @@ export async function sendTelegramMessage(
         chat_id: chatId,
         text,
         parse_mode: "HTML",
-        ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}),
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
       }),
     });
     const data = await res.json();
@@ -50,12 +62,19 @@ export async function editTelegramMessage(
   chatId: string | number,
   messageId: number,
   text: string,
+  buttons?: InlineButton[][],
 ) {
   try {
     await fetch(`${TELEGRAM_API}/editMessageText`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, parse_mode: "HTML" }),
+      body: JSON.stringify({
+        chat_id: chatId,
+        message_id: messageId,
+        text,
+        parse_mode: "HTML",
+        ...(buttons ? { reply_markup: { inline_keyboard: buttons } } : {}),
+      }),
     });
   } catch (err) {
     console.warn("Telegram xabarni tahrirlashda xato:", err);

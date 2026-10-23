@@ -5,12 +5,16 @@ export default function SiteFooter() {
   const t = useTranslations("landing");
   const tTerms = useTranslations("terms");
   const tPrivacy = useTranslations("privacy");
+  const tGuide = useTranslations("guide");
 
   return (
     <footer className="bg-tun-deep text-sahar/70">
       <div className="mx-auto max-w-6xl px-6 py-8 text-center text-xs sm:py-10 sm:text-left sm:text-sm">
         <p className="mx-auto max-w-lg sm:mx-0">{t("footerNote")}</p>
         <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sahar/60 sm:mt-5 sm:justify-start">
+          <Link href="/guide" className="hover:text-sahar">
+            {tGuide("pageTitle")}
+          </Link>
           <Link href="/terms" className="hover:text-sahar">
             {tTerms("pageTitle")}
           </Link>

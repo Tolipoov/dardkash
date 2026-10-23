@@ -1,4 +1,6 @@
 import { pool } from "./db";
+import { escapeHtml, sendTelegramMessage } from "./telegram/bot";
+import { cancelWaitlist } from "./waitlist";
 
 export async function isBanned(userId: string): Promise<boolean> {
   const result = await pool.query(
@@ -33,6 +35,7 @@ export async function banUser(
     "UPDATE listener_profiles SET is_online = false WHERE user_id = $1",
     [userId],
   );
+  await cancelWaitlist(userId);
   const closed = await pool.query(
     `UPDATE sessions SET
        status = CASE WHEN status = 'scheduled'
@@ -87,4 +90,58 @@ export async function resolveReport(
     [reportedUser, resolvedBy],
   );
   return { banned };
+}
+
+export const REPORT_REASON_LABELS: Record<string, string> = {
+  abuse: "Haqorat / tahqirlash",
+  inappropriate: "Nomunosib xatti-harakat",
+  other: "Boshqa sabab",
+};
+
+// Shikoyatni saqlaydi va admin'ga Telegram'da tugmalar bilan yuboradi
+// (suhbat ham, xat ham shu yerdan). `context` — admin xabaridagi qo'shimcha
+// qator (masalan qaysi xat haqida).
+export async function fileReport(opts: {
+  reporterId: string;
+  reportedUserId: string;
+  sessionId: string | null;
+  reason: string;
+  details: string | null;
+  context?: string;
+}) {
+  const { reporterId, reportedUserId, sessionId, reason, details, context } = opts;
+  const inserted = await pool.query(
+    `INSERT INTO reports (session_id, reported_by, reported_user, reason, details)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id`,
+    [sessionId, reporterId, reportedUserId, reason, details],
+  );
+  const reportId = inserted.rows[0].id as string;
+
+  // Avval shikoyat faqat bazaga yozilardi — hech kim xabar topmasdi.
+  if (!process.env.ADMIN_TELEGRAM_CHAT_ID) return;
+  const names = await pool.query(
+    `SELECT
+       (SELECT nickname FROM profiles WHERE user_id = $1) AS reporter,
+       (SELECT nickname FROM profiles WHERE user_id = $2) AS reported,
+       (SELECT COUNT(*) FROM reports WHERE reported_user = $2) AS total`,
+    [reporterId, reportedUserId],
+  );
+  const { reporter, reported, total } = names.rows[0];
+  await sendTelegramMessage(
+    process.env.ADMIN_TELEGRAM_CHAT_ID,
+    `🚨 <b>Yangi shikoyat</b>\n\n` +
+      `👤 Kimga: ${escapeHtml(reported || "—")} (jami shikoyatlar: ${total})\n` +
+      `✍️ Kimdan: ${escapeHtml(reporter || "—")}\n` +
+      `🏷 Sabab: ${REPORT_REASON_LABELS[reason]}` +
+      (context ? `\n📍 ${escapeHtml(context)}` : "") +
+      (details ? `\n📝 ${escapeHtml(details)}` : "") +
+      `\n\n${process.env.APP_BASE_URL}/admin/moderation`,
+    [
+      [
+        { text: "🚫 Bloklash", callback_data: `report_ban:${reportId}` },
+        { text: "✓ Yopish", callback_data: `report_ok:${reportId}` },
+      ],
+    ],
+  );
 }

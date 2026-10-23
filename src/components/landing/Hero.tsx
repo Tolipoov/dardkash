@@ -1,4 +1,5 @@
 import HeroCTAButtons from "@/components/landing/HeroCTAButtons";
+import LiveStatus from "@/components/landing/LiveStatus";
 import { getTranslations } from "next-intl/server";
 import { Lock } from "lucide-react";
 import Image from "next/image";
@@ -19,6 +20,7 @@ export default async function Hero() {
         <p className="mt-6 flex items-center gap-2 text-[15px] text-kul/55">
           <Lock size={18} strokeWidth={2.75} /> {t("trustNote")}
         </p>
+        <LiveStatus />
       </div>
       <div className="relative flex items-center justify-center md:h-[520px]">
         <div

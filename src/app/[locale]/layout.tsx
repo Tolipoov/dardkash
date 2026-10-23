@@ -1,4 +1,5 @@
 import CallNotifier from "@/components/call/CallNotifier";
+import TelegramMiniApp from "@/components/call/TelegramMiniApp";
 import SiteFooter from "@/components/landing/SiteFooter";
 import SiteHeader from "@/components/landing/SiteHeader";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -57,9 +58,13 @@ export default async function LocaleLayout({
         <NextIntlClientProvider messages={messages} locale={locale}>
           <ToastProvider>
             <SiteHeader />
-            <main>{children}</main>
+            {/* min-w-0 — grid elementi ichidagi keng (aylantiriladigan) qator,
+                masalan kabinet tablari, butun sahifani telefonda o'ngga
+                cho'zib yubormasin. */}
+            <main className="min-w-0">{children}</main>
             <SiteFooter />
             <CallNotifier />
+            <TelegramMiniApp />
           </ToastProvider>
         </NextIntlClientProvider>
       </body>
