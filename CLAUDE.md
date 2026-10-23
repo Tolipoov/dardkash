@@ -941,3 +941,14 @@ sinaganda topiladigan" xatolarga misol.
     forma (`hasProfile`). Tahrirlashda "Saqlash" doim bosiladi: chala tab bo'lsa
     o'sha tab ochiladi, izohda "«Suhbat» bo'limida: …" (avval tugma sababsiz
     o'chiq turardi, sababi boshqa tabda yashirin edi).
+83. **[✅ QO'SHILDI] Avtomatik integratsion testlar** (`server/tests/`,
+    `cd server && npm test`, ~70 soniya, Docker kerak). Har safar vaqtinchalik
+    Postgres konteyneri ko'tariladi, barcha migratsiyalar noldan qo'llanadi,
+    backend mock Telegram bilan ishga tushadi (`mock-telegram.cjs`), oxirida
+    hammasi o'chiriladi — jonli bazaga tegmaydi. Qamrov: profil validatsiyasi
+    (emoji, telefon, takror taxallus, mavzular, avatar), profilsiz cheklov,
+    maxfiylik (dardkash profili, mini-profil), navbat (parallel olish),
+    yozishmalar (o'qilmaganlar, 24 soatlik tozalash), xatlar moderatsiyasi,
+    Telegram ko'chirish, tasdiq xabari. `tests` Docker image'ga kirmaydi.
+    **Qoida: yangi funksiya yoki tuzatish — shu yerga test qo'shing va deploy'dan
+    oldin `npm test` ishga tushiring.**
