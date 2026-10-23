@@ -1676,8 +1676,13 @@ app.post("/api/conversations", requireAuth, requireProfile, callLimiter, async (
   }
 });
 
+// Suhbatlar tarixi sahifalab: `?offset=N`, har safar RECENT_PAGE ta.
+// Avval faqat oxirgi 10 ta qaytarilardi — eskilarini ko'rib bo'lmasdi.
+const RECENT_PAGE = 10;
+
 app.get("/api/sessions/recent", requireAuth, async (req, res) => {
   try {
+    const offset = Math.min(Math.max(Number.parseInt(String(req.query.offset ?? "0"), 10) || 0, 0), 10000);
     const result = await pool.query(
       `SELECT s.id, s.started_at, s.ended_at,
               CASE WHEN s.speaker_id = $1 THEN 'speaker' ELSE 'listener' END AS my_role,
@@ -1701,11 +1706,15 @@ app.get("/api/sessions/recent", requireAuth, async (req, res) => {
        WHERE (s.speaker_id = $1 OR s.listener_id = $1)
          AND s.status = 'ended'
          AND s.started_at IS NOT NULL
-       ORDER BY COALESCE(s.ended_at, s.started_at) DESC
-       LIMIT 10`,
-      [req.userId],
+       ORDER BY COALESCE(s.ended_at, s.started_at) DESC, s.id
+       LIMIT $2 OFFSET $3`,
+      [req.userId, RECENT_PAGE + 1, offset],
     );
-    res.json({ status: "ok", sessions: result.rows });
+    res.json({
+      status: "ok",
+      sessions: result.rows.slice(0, RECENT_PAGE),
+      hasMore: result.rows.length > RECENT_PAGE,
+    });
   } catch (err) {
     console.error("So'nggi suhbatlarni olishda xato:", err);
     res

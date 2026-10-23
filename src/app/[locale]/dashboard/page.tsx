@@ -83,6 +83,10 @@ interface SentInvite {
 const DASHBOARD_TABS = ["listeners", "invites", "history", "impact"] as const;
 type DashboardTab = (typeof DASHBOARD_TABS)[number];
 
+const LISTENERS_PAGE = 9;
+const SHOW_MORE_CLASS =
+  "rounded-full border border-kul/20 bg-white/60 px-5 py-2.5 text-sm font-semibold text-kul transition-colors hover:border-barg/60 hover:text-barg disabled:opacity-60";
+
 export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const tTopics = useTranslations("topics");
@@ -97,6 +101,8 @@ export default function DashboardPage() {
   const [incomingInvites, setIncomingInvites] = useState<IncomingInvite[]>([]);
   const [sentInvites, setSentInvites] = useState<SentInvite[]>([]);
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
+  const [historyHasMore, setHistoryHasMore] = useState(false);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [linkingTelegram, setLinkingTelegram] = useState(false);
@@ -116,6 +122,8 @@ export default function DashboardPage() {
   // talab qiladi).
   const [tab, setTab] = useState<DashboardTab>("listeners");
   const [listenerFilter, setListenerFilter] = useState<"all" | "online" | "favorites">("all");
+  // Ro'yxat uzun bo'lib ketmasin: avval LISTENERS_PAGE ta, keyin "Yana".
+  const [listenersShown, setListenersShown] = useState(LISTENERS_PAGE);
   const [inviteMessage, setInviteMessage] = useState("");
   // "invite" — taklif (ixtiyoriy xabar bilan), "message" — qo'ng'iroqsiz
   // yozishma (xabar majburiy, /api/conversations).
@@ -179,10 +187,31 @@ export default function DashboardPage() {
       if (!res.ok) return;
       const data = await res.json();
       setRecentSessions(data.sessions || []);
+      setHistoryHasMore(Boolean(data.hasMore));
     } catch (err) {
       console.error("So'nggi suhbatlarni yuklashda xato:", err);
     }
   }, []);
+
+  async function loadMoreHistory() {
+    setHistoryLoadingMore(true);
+    try {
+      const res = await fetch(`/api/sessions/recent?offset=${recentSessions.length}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const data = await res.json();
+      setRecentSessions((prev) => {
+        const seen = new Set(prev.map((s) => s.id));
+        return [...prev, ...(data.sessions || []).filter((s: RecentSession) => !seen.has(s.id))];
+      });
+      setHistoryHasMore(Boolean(data.hasMore));
+    } catch {
+      toast.push(t("loadError"), "error");
+    } finally {
+      setHistoryLoadingMore(false);
+    }
+  }
 
   const loadInvites = useCallback(async () => {
     try {
@@ -1025,7 +1054,10 @@ export default function DashboardPage() {
             <button
               key={value}
               type="button"
-              onClick={() => setListenerFilter(value)}
+              onClick={() => {
+                setListenerFilter(value);
+                setListenersShown(LISTENERS_PAGE);
+              }}
               aria-pressed={listenerFilter === value}
               className={`rounded-full border px-4 py-1.5 text-sm transition-colors ${
                 listenerFilter === value
@@ -1047,7 +1079,7 @@ export default function DashboardPage() {
           </p>
         ) : (
           <div className="mt-5 grid gap-5 md:grid-cols-3">
-            {visibleListeners.map((listener) => (
+            {visibleListeners.slice(0, listenersShown).map((listener) => (
               <ListenerCard
                 key={listener.id}
                 listener={listener}
@@ -1057,6 +1089,17 @@ export default function DashboardPage() {
                 onToggleFavorite={toggleFavorite}
               />
             ))}
+          </div>
+        )}
+        {visibleListeners.length > listenersShown && (
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              onClick={() => setListenersShown((n) => n + LISTENERS_PAGE)}
+              className={SHOW_MORE_CLASS}
+            >
+              {t("showMore", { count: visibleListeners.length - listenersShown })}
+            </button>
           </div>
         )}
             </>
@@ -1197,6 +1240,18 @@ export default function DashboardPage() {
               );
             })}
           </ul>
+        )}
+        {historyHasMore && (
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              onClick={loadMoreHistory}
+              disabled={historyLoadingMore}
+              className={SHOW_MORE_CLASS}
+            >
+              {historyLoadingMore ? "…" : t("showMoreHistory")}
+            </button>
+          </div>
         )}
             </>
           )}

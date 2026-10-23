@@ -971,3 +971,11 @@ sinaganda topiladigan" xatolarga misol.
     Yagona topilgan kamchilik — `public/` fayllari `max-age=0` edi; endi
     `next.config.mjs` `headers()` bilan 1 kun + `stale-while-revalidate`
     (`sw.js` ataylab tashqarida).
+86. **[✅ QO'SHILDI] Kabinetda sahifalash va yangi footer** (2026-10-23).
+    Dardkashlar tabida avval 9 ta (`LISTENERS_PAGE`), "Yana ko'rsatish (N ta
+    qoldi)" — filtr almashsa qaytadan 9 ta. Suhbatlar tarixi avval faqat oxirgi
+    10 ta edi, eskilarini ko'rib bo'lmasdi: `GET /api/sessions/recent?offset=N`
+    → `{ sessions, hasMore }`, "Eskiroq suhbatlar" tugmasi. Footer qora blokdan
+    saytning yorug' `sahar-dim` foniga: logo + shior + ogohlantirish,
+    "Platforma" va "Ma'lumot" ustunlari, Telegram bot havolasi
+    (`NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` bo'lsa).

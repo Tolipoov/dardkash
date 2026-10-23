@@ -161,6 +161,28 @@ describe("xatlar", () => {
   });
 });
 
+describe("suhbatlar tarixi", () => {
+  it("sahifalab qaytariladi, takrorsiz", async () => {
+    const speaker = await createUser(env);
+    const listener = await createUser(env, { listener: true });
+    for (let i = 0; i < 13; i++) {
+      await env.q(
+        `INSERT INTO sessions (speaker_id, listener_id, status, started_at, ended_at)
+         VALUES ($1, $2, 'ended', now() - ($3 || ' hours')::interval, now() - ($3 || ' hours')::interval + interval '20 minutes')`,
+        [speaker, listener, String(i + 1)],
+      );
+    }
+    const first = await env.api(speaker, "GET", "/api/sessions/recent");
+    assert.equal(first.body.sessions.length, 10);
+    assert.equal(first.body.hasMore, true);
+    const second = await env.api(speaker, "GET", "/api/sessions/recent?offset=10");
+    assert.equal(second.body.sessions.length, 3);
+    assert.equal(second.body.hasMore, false);
+    const ids = new Set([...first.body.sessions, ...second.body.sessions].map((s) => s.id));
+    assert.equal(ids.size, 13);
+  });
+});
+
 describe("login", () => {
   // Telegram widget imzosi — haqiqiy widget kabi bot token bilan.
   const telegramLogin = (tgId, next) => {
